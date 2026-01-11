@@ -29,7 +29,6 @@ include_directories(${SystemC_INCLUDE_DIRS})
 # Source files for SOLE executable
 set(SOLE_SOURCES
     src/SOLE.cpp
-    src/E2Softmax_LayerNorm.cpp
 )
 
 # Source files for MaxUnit test executable
@@ -47,6 +46,40 @@ add_executable(MaxUnit_test ${MAXUNIT_TEST_SOURCES})
 target_link_directories(MaxUnit_test PRIVATE ${SystemC_LIBRARY_DIRS})
 target_link_libraries(MaxUnit_test ${SystemC_LIBRARIES})
 
+# Source files for Log2Exp test executable
+set(LOG2EXP_TEST_SOURCES
+    src/Log2Exp.cpp
+    test/Log2Exp_test.cpp
+)
+
+# Create Log2Exp test executable
+add_executable(Log2Exp_test ${LOG2EXP_TEST_SOURCES})
+target_link_directories(Log2Exp_test PRIVATE ${SystemC_LIBRARY_DIRS})
+target_link_libraries(Log2Exp_test ${SystemC_LIBRARIES})
+
+# Source files for Reduction test executable
+set(REDUCTION_TEST_SOURCES
+    test/Reduction_test.cpp
+)
+
+# Create Reduction test executable
+add_executable(Reduction_test ${REDUCTION_TEST_SOURCES})
+target_link_directories(Reduction_test PRIVATE ${SystemC_LIBRARY_DIRS})
+target_link_libraries(Reduction_test ${SystemC_LIBRARIES})
+
+# Source files for Divider_PreCompute test executable
+set(DIVIDER_PRECOMPUTE_TEST_SOURCES
+    test/Divider_PreCompute_test.cpp
+)
+
+# Create Divider_PreCompute test executable
+add_executable(Divider_PreCompute_test ${DIVIDER_PRECOMPUTE_TEST_SOURCES})
+target_link_directories(Divider_PreCompute_test PRIVATE ${SystemC_LIBRARY_DIRS})
+target_link_libraries(Divider_PreCompute_test ${SystemC_LIBRARIES})
+
 # Optional: Add a custom target to run tests
 enable_testing()
 add_test(NAME MaxUnit COMMAND MaxUnit_test)
+add_test(NAME Log2Exp COMMAND Log2Exp_test)
+add_test(NAME Reduction COMMAND Reduction_test)
+add_test(NAME Divider_PreCompute COMMAND Divider_PreCompute_test)
