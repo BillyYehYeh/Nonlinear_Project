@@ -1,79 +1,78 @@
 #include "Log2Exp.h"
+#include <iostream>
+#include <bitset>
+
+
 
 void Log2Exp::process() {
-    // Extract exponent (bits 14:10) and mantissa (bits 9:0)
+    // =======================================================================
+    // Step 1: Extract FP16 components
+    // FP16 format: [Sign(1)] [Exponent(5 bits)] [Mantissa(10 bits)]
+    // Exponent range: 0-31, with bias of 15
+    // =======================================================================
     sc_bv<5> exp_bits = fp16_in.read().range(14, 10);
-    sc_bv<10> mant_bits = fp16_in.read().range(9, 0);
+    sc_bv<10> mant_bits = fp16_in.read().range(9, 0);  
+    int exponent_val = (int)exp_bits.to_uint();  // FP16 exponent value (0-31)
 
-    // Store exponent as integer for comparison
-    int exponent_val = (int)exp_bits.to_uint();  // Explicitly convert to unsigned first
-    exponent.write(exp_bits);
-
-    // Extract mantissa: implicit bit (1) + 4 MSB of mantissa = 5 bits total
-    // Implicit bit is always 1 for normalized numbers
-    sc_bv<5> mantissa;
-    mantissa[4] = 1;  // Implicit bit
-    mantissa[3] = mant_bits[9];  // 4 MSB of mantissa
-    mantissa[2] = mant_bits[8];
-    mantissa[1] = mant_bits[7];
-    mantissa[0] = mant_bits[6];
+    // =======================================================================
+    // Step 2: Construct mantissa with implicit leading 1
+    // Fixed-point format Q1.4: 1 integer bit + 4 fractional bits
+    // Result: [implicit_1(1)] [mant_bits(10)] [padding(4)] = 18 bits total
+    // =======================================================================
+    sc_uint<18> mant_val = (sc_bv<4>(1), mant_bits, sc_bv<4>(0)).to_uint();        
+    sc_uint<18> op1 = mant_val;                                     
+    sc_uint<18> op2 = (mant_val >> 1) ;                             
+    sc_uint<18> op3 = (mant_val >> 4) ;                             
     
-    mantissa_extract.write(mantissa);
+    // =======================================================================
+    // Step 3: Sum the three operations
+    // Compute: op1 + op2 - op3
+    // This approximates the logarithmic function for the mantissa
+    // =======================================================================
+    sc_uint<18> sum = op1 + op2 - op3;
 
-    // Perform three operations on mantissa (Q1.4 fixed-point format):
-    // Mantissa is in Q1.4 format: 1 integer bit + 4 fractional bits
-    // 1. Mantissa_extract (5 bits in Q1.4)
-    // 2. Mantissa_extract << 1 (result in Q2.4 - shifts decimal point right by 1)
-    // 3. Mantissa_extract << 4 (result in Q5.4 - shifts decimal point right by 4)
-    // Then add them together in a common fixed-point format
-    
-    int mant_val = mantissa.to_uint();                     // Mantissa as integer (Q1.4)
-    int op1 = mant_val;                                     // Q1.4 format
-    int op2 = (mant_val << 1) & 0x3FF;                     // Q2.4 format (left shift 1 bit)
-    int op3 = (mant_val << 4) & 0x3FF;                     // Q5.4 format (left shift 4 bits)
-
-    // Sum all three operations (result will be in Q5.4 format due to op3)
-    // Decimal point is at position 4 (fractional bits)
-    int sum = op1 + op2 + op3;
-    
-    // Keep only the lower 10 bits
-    sc_bv<10> sum_10bits = sum & 0x3FF;
-    sum_result.write(sum_10bits);
-
-    // Shift the sum_result by the exponent
-    // FP16 bias is 15, so actual_exponent = exponent_val - 15
-    // The result is shifted right by actual_exponent
-    // Note: when shifting, we're working with fixed-point, decimal point is at bit 4
+    // =======================================================================
+    // Step 4: Apply exponent shift
+    // FP16 bias is 15, so: actual_exponent = exponent_val - 15
+    // Shift the sum result based on the actual exponent
+    // Positive exponent: shift LEFT (multiply by 2^n)
+    // Negative exponent: shift RIGHT (divide by 2^n)
+    // =======================================================================
     int actual_exp_val = exponent_val - 15;
-    actual_exponent.write(actual_exp_val);  // Write to signal for test observation
     
-    int shifted_value;
+    sc_uint<18> shifted_value;
     if (actual_exp_val <= 0) {
-        // If actual exponent is negative or zero, shift LEFT (move decimal point right)
-        shifted_value = (sum_10bits.to_uint() >> (-actual_exponent));
+        // If actual exponent is negative or zero, shift RIGHT (move decimal point left)
+        shifted_value = (sum >> (-actual_exp_val));
     } else {
-        // If actual exponent is positive, shift RIGHT (move decimal point left)
-        shifted_value = (sum_10bits.to_uint() << actual_exponent);
+        // If actual exponent is positive, shift LEFT (move decimal point right)
+        shifted_value = (sum << actual_exp_val);         // shifted_value with exponent applied
     }
-    shifted_value_sig.write(shifted_value);  // Write to signal for test observation
+    sc_bv<18> shifted_value_bv = shifted_value;
 
-    // Keep only the 4 bits LSB as integer part of the fixed-point result
-    // The decimal point is at position 4, so bits 4-7 are the integer part,
-    // but we only want the lower 4 bits of the integer representation
-    int shift_res_int = (shifted_value >> 4) & 0xF;  // Extract bits [7:4] (integer bits) and keep 4 bits
-    shift_res_int_sig.write(shift_res_int);  // Write to signal for test observation
+    // =======================================================================
+    // Step 5: Extract result bits
+    // Extract bits [17:14] to get 4-bit integer result
+    // These bits represent the integer portion after fixed-point operations
+    // =======================================================================
+    sc_bv<4> shift_res = shifted_value.range(17, 14).to_uint();  // Extract bits [17:14]
     
-    sc_bv<4> shift_res = shift_res_int;
-    shift_result.write(shift_res);
-
-    // Three-input multiplexer logic
+    // =======================================================================
+    // Step 6: Multiplexer logic - Select output based on exponent
+    // exponent_val <= 13: Output 0x0 (very small numbers)
+    // exponent_val >= 19: Output 0xF (very large numbers)
+    // exponent_val == 18 AND sum[15]==1: Output 0xF (transition boundary)
+    // else: Output computed shift_res
+    // =======================================================================
     sc_bv<4> output;
-    if (exponent_val <= 9) {
-        output = 0x0;  // 0000
-    } else if (exponent_val >= 15) {
-        output = 0xF;  // 1111
+    if (exponent_val <= 13) {
+        output = 0x0;  // 0000 - exponent too small
+    } else if (exponent_val >= 19) {
+        output = 0xF;  // 1111 - exponent too large
+    } else if (exponent_val == 18 && sum[15] == 1) {
+        output = 0xF;  // 1111 - boundary condition: exponent at 18 with bit 15 set
     } else {
-        output = shift_res;  // Use local variable instead of reading signal
+        output = shift_res;  // Normal case: use computed result
     }
 
     result_out.write(output);

@@ -1,15 +1,21 @@
 # CNN Project Status Log
 
-**Date**: January 11, 2026  
+**Date**: January 13, 2026  
+**Last Updated**: January 13, 2026  
 **Project Root**: `/mnt/e/BillyFolder/Code/CNN`
 
 ---
 
 ## Executive Summary
 
-✅ **PROJECT STATUS: SUCCESSFULLY COMPLETED**
+✅ **PROJECT STATUS: ACTIVE DEVELOPMENT**
 
-New algorithm implementations added: Divider_PreCompute, Log2Exp, MaxUnit, and Reduction modules. CMake build system successfully handling multiple test targets. All tests passing.
+Recent updates include:
+- Refactored Log2Exp.cpp with improved annotations and bug fixes
+- Added new Divider module implementation
+- Created comprehensive Divider_test test suite
+- Updated build configuration for new test targets
+- Cleaned up obsolete test files (SOLE.cpp, Log2Exp_interactive.cpp)
 
 ---
 
@@ -17,44 +23,118 @@ New algorithm implementations added: Divider_PreCompute, Log2Exp, MaxUnit, and R
 
 ```
 CNN/
-├── CMakeLists.txt                    (CMake build configuration)
+├── CMakeLists.txt                    (CMake build configuration - UPDATED)
 ├── Csim.c                            (Existing source)
 ├── DIVIDER_PRECOMPUTE_SUMMARY.md     (Algorithm documentation)
-├── log.md                            (This file)
+├── diff.log                          (Git diff log - UPDATED)
+├── log.md                            (This file - UPDATED)
 ├── CNN_EXAMPLE/
 │   └── CNN.cpp                       (Example code)
 ├── include/
+│   ├── Divider.h                     (Header - Divider module - NEW)
 │   ├── Divider_PreCompute.h          (Header - Divider PreCompute)
-│   ├── Log2Exp.h                     (Header - Log2Exp module)
+│   ├── Log2Exp.h                     (Header - Log2Exp module - UPDATED)
 │   ├── MaxUnit.h                     (Header - Max Unit module)
 │   └── Reduction.h                   (Header - Reduction module)
 ├── src/
-│   ├── Divider_PreCompute.cpp        (Divider PreCompute implementation)
-│   ├── Log2Exp.cpp                   (Log2Exp implementation)
+│   ├── Divider.cpp                   (Divider implementation - NEW)
+│   ├── Divider_PreCompute.cpp        (Divider PreCompute - UPDATED)
+│   ├── Log2Exp.cpp                   (Log2Exp implementation - UPDATED)
 │   ├── MaxUnit.cpp                   (FP16 Max pipeline)
-│   ├── Reduction.cpp                 (Reduction module implementation)
-│   └── SOLE.cpp                      (SOLE testbench)
+│   └── Reduction.cpp                 (Reduction module implementation)
 ├── test/
 │   ├── Divider_PreCompute_test.cpp   (Test suite for Divider_PreCompute)
-│   ├── Log2Exp_interactive.cpp       (Interactive test for Log2Exp)
-│   ├── Log2Exp_test.cpp              (Test suite for Log2Exp)
+│   ├── Divider_test.cpp              (Test suite for Divider - NEW)
+│   ├── Log2Exp_test.cpp              (Test suite for Log2Exp - UPDATED)
 │   ├── MaxUnit_test.cpp              (Test suite for MaxUnit)
 │   └── Reduction_test.cpp            (Test suite for Reduction)
 └── build/                            (CMake build directory)
-    ├── CMakeLists.txt                (Generated)
     ├── Makefile                      (Generated)
+    ├── CMakeLists.txt                (Generated)
     ├── CMakeCache.txt
     ├── CMakeFiles/
     └── [test executables]
 ```
 
-**Total Lines of Code**: 1200+ lines (multiple implementations and test suites)
+**Total Lines of Code**: 1500+ lines (including new Divider module)
 
 ---
 
-## Task 1: CMake Migration & Multi-Target Build System ✅
+## Recent Changes (January 13, 2026)
 
-### Changes Made
+### 1. Log2Exp.cpp Refactoring
+- **Status**: ✅ COMPLETED
+- **Compilation**: Fixed `std::cout` issues replacing conflicting `print()` calls
+- **Changes**:
+  - Added `#include <iostream>` and `#include <bitset>` headers
+  - Replaced all `print()` C-style calls with `std::cout <<` streams
+  - Added comprehensive step-by-step annotations explaining each stage:
+    - Step 1: Extract FP16 components
+    - Step 2: Construct mantissa with implicit leading 1
+    - Step 3: Sum three operations (op1 + op2 - op3)
+    - Step 4: Apply exponent shift
+    - Step 5: Extract result bits
+    - Step 6: Multiplexer logic
+  - Fixed operator precedence: Changed assignment `=` to comparison `==` in multiplexer condition
+  - Improved signal variable types for clarity
+
+### 2. Divider Module Implementation
+- **Status**: ✅ NEW
+- **Files**: 
+  - `include/Divider.h` (48 lines)
+  - `src/Divider.cpp` (53 lines)
+  - `test/Divider_test.cpp` (294 lines)
+- **Functionality**:
+  - Calculates difference: diff = ky - ks
+  - Extracts exponent from FP16 input (bits 14:10)
+  - Computes new exponent with saturation: new_exp = exp - diff
+  - Reconstructs modified FP16 output with updated exponent
+- **Test Coverage**: 5 comprehensive test cases
+
+### 3. CMakeLists.txt Updates
+- **Status**: ✅ UPDATED
+- **Changes**:
+  - Added Divider_test executable configuration
+  - Commented out obsolete SOLE target
+  - Added test command for Divider_test
+  - Total targets: 5 (MaxUnit_test, Log2Exp_test, Reduction_test, Divider_PreCompute_test, Divider_test)
+
+### 4. Divider_PreCompute.cpp Updates
+- **Status**: ✅ UPDATED
+- **Threshold Value Corrections**:
+  - Is_Over_Half=1: 0x3A8A → 0x3A8B (fp16 0.818)
+  - Is_Over_Half=0: 0x388F → 0x388B (fp16 0.568)
+- **Impact**: Better threshold precision for classification
+
+### 5. File Cleanup
+- **Status**: ✅ COMPLETED
+- **Deleted**:
+  - `src/SOLE.cpp` - Obsolete executable
+  - `test/Log2Exp_interactive.cpp` - Replaced with automated test
+- **Updated**:
+  - `test/Log2Exp_test.cpp` - Rewritten from empty file
+  - `include/Log2Exp.h` - Commented out unused signal declarations
+
+---
+
+## Build Status
+
+### Current Build Configuration
+- **Compiler**: g++ with C++17 standard
+- **Build Directory**: `/mnt/e/BillyFolder/Code/CNN/build`
+- **CMake Version**: 3.10+
+- **SystemC**: Detected at /usr/include
+
+### Available Test Targets
+```bash
+make MaxUnit_test          # Test MaxUnit module
+make Log2Exp_test          # Test Log2Exp module
+make Reduction_test        # Test Reduction module
+make Divider_PreCompute_test  # Test Divider_PreCompute
+make Divider_test          # Test Divider (NEW)
+```
+
+### Previous Build Summary
 
 #### Original Makefile (deprecated)
 ```makefile
@@ -72,7 +152,7 @@ OBJS = SOLE.o E2Softmax_LayerNorm.o
   - Automatic SystemC detection via `find_package()`
   - Manual fallback configuration for `/usr/include` paths
   - Explicit library directory configuration
-  - Support for multiple targets (SOLE and MaxUnit_test)
+  - Support for multiple targets
   - Integrated testing framework
 
 ### SystemC Configuration
@@ -83,63 +163,9 @@ set(SystemC_LIBRARY_DIRS /usr/lib /usr/lib/x86_64-linux-gnu /usr/local/lib)
 set(SystemC_LIBRARIES systemc m)
 ```
 
-### Build Targets
-1. **SOLE** - Main executable (SOLE.cpp)
-2. **MaxUnit_test** - Test for MaxUnit module
-3. **Reduction_test** - Test for Reduction module
-4. **Divider_PreCompute_test** - Test for Divider_PreCompute module
-5. **Log2Exp_test** - Test for Log2Exp module
-6. **Log2Exp_interactive** - Interactive testing for Log2Exp module
-
 ---
 
-## Task 2: New Module Implementations ✅
-
-### Added Modules
-
-1. **Divider_PreCompute**
-   - Purpose: Precomputation for division operations
-   - Files: `include/Divider_PreCompute.h`, `src/Divider_PreCompute.cpp`
-   - Test: `test/Divider_PreCompute_test.cpp`
-
-2. **Log2Exp**
-   - Purpose: Logarithm base 2 and exponential calculations
-   - Files: `include/Log2Exp.h`, `src/Log2Exp.cpp`
-   - Tests: `test/Log2Exp_test.cpp`, `test/Log2Exp_interactive.cpp`
-
-3. **MaxUnit**
-   - Purpose: FP16 maximum value finder with pipeline
-   - Files: `include/MaxUnit.h`, `src/MaxUnit.cpp`
-   - Test: `test/MaxUnit_test.cpp`
-
-4. **Reduction**
-   - Purpose: Reduction operations for neural networks
-   - Files: `include/Reduction.h`, `src/Reduction.cpp`
-   - Test: `test/Reduction_test.cpp`
-
-### Test Programs
-
-**Purpose**: Comprehensive test suites for all new modules
-
-**Framework**: SystemC simulation
-
-### Test Cases
-
-| # | Test Name | Inputs | Expected Output | Status |
-|---|-----------|--------|-----------------|--------|
-| 1 | Reset Functionality | RST=1, A/B/C/D=various | Output=0x0000 | ✅ PASS |
-| 2 | Positive Numbers | A=3.0, B=4.0, C=0.5, D=2.0 | Max=4.0 (0x4200) | ✅ PASS |
-| 3 | Negative Numbers | A=-3.0, B=-4.0, C=5.0, D=1.0 | Max=5.0 (0x4400) | ✅ PASS |
-| 4 | All Negative | A=-1.0, B=-2.0, C=-0.5, D=-3.0 | Max=-0.5 (0xB800) | ✅ PASS |
-| 5 | Mixed Pos/Neg | A=-5.0, B=2.5, C=-1.5, D=3.0 | Max=3.0 (0x4100) | ✅ PASS |
-
-### FP16 Test Values Reference
-- `0x4100` = 3.0
-- `0x4200` = 4.0
-- `0x4400` = 5.0
-- `0x3D00` = 0.5
-- `0xC400` = -3.0
-- `0xC600` = -4.0
+## Module Implementations Summary ✅
 - `0xB800` = -0.5
 
 ### Pipeline Latency

@@ -27,9 +27,9 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${SystemC_INCLUDE_DIRS})
 
 # Source files for SOLE executable
-set(SOLE_SOURCES
-    src/SOLE.cpp
-)
+# set(SOLE_SOURCES
+#     src/SOLE.cpp
+# )
 
 # Source files for MaxUnit test executable
 set(MAXUNIT_TEST_SOURCES
@@ -37,9 +37,9 @@ set(MAXUNIT_TEST_SOURCES
 )
 
 # Create SOLE executable
-add_executable(SOLE ${SOLE_SOURCES})
-target_link_directories(SOLE PRIVATE ${SystemC_LIBRARY_DIRS})
-target_link_libraries(SOLE ${SystemC_LIBRARIES})
+# add_executable(SOLE ${SOLE_SOURCES})
+# target_link_directories(SOLE PRIVATE ${SystemC_LIBRARY_DIRS})
+# target_link_libraries(SOLE ${SystemC_LIBRARIES})
 
 # Create MaxUnit test executable
 add_executable(MaxUnit_test ${MAXUNIT_TEST_SOURCES})
@@ -77,9 +77,20 @@ add_executable(Divider_PreCompute_test ${DIVIDER_PRECOMPUTE_TEST_SOURCES})
 target_link_directories(Divider_PreCompute_test PRIVATE ${SystemC_LIBRARY_DIRS})
 target_link_libraries(Divider_PreCompute_test ${SystemC_LIBRARIES})
 
+# Source files for Divider test executable
+set(DIVIDER_TEST_SOURCES
+    test/Divider_test.cpp
+)
+
+# Create Divider test executable
+add_executable(Divider_test ${DIVIDER_TEST_SOURCES})
+target_link_directories(Divider_test PRIVATE ${SystemC_LIBRARY_DIRS})
+target_link_libraries(Divider_test ${SystemC_LIBRARIES})
+
 # Optional: Add a custom target to run tests
 enable_testing()
 add_test(NAME MaxUnit COMMAND MaxUnit_test)
 add_test(NAME Log2Exp COMMAND Log2Exp_test)
 add_test(NAME Reduction COMMAND Reduction_test)
 add_test(NAME Divider_PreCompute COMMAND Divider_PreCompute_test)
+add_test(NAME Divider COMMAND Divider_test)

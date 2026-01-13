@@ -61,11 +61,11 @@ void Divider_PreCompute_Module::compute_threshold() {
     sc_uint16 threshold;
     
     if (is_over_half == 1) {
-        // Is_Over_Half = 1: use fp16(0.818) = 0011101010001010
-        threshold = sc_uint16(0x3A8A);
+        // Is_Over_Half = 1: use fp16(0.818) = 0011101010001011
+        threshold = sc_uint16(0x3A8B);
     } else {
-        // Is_Over_Half = 0: use fp16(0.568) = 0011100010001111
-        threshold = sc_uint16(0x388F);
+        // Is_Over_Half = 0: use fp16(0.568) = 0011100010001011
+        threshold = sc_uint16(0x388B);
     }
     
     Threshold_Result.write(threshold);
