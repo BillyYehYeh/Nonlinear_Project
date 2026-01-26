@@ -87,6 +87,36 @@ add_executable(Divider_test ${DIVIDER_TEST_SOURCES})
 target_link_directories(Divider_test PRIVATE ${SystemC_LIBRARY_DIRS})
 target_link_libraries(Divider_test ${SystemC_LIBRARIES})
 
+# Source files for Max_Buffer test executable
+set(MAX_BUFFER_TEST_SOURCES
+    test/Max_Buffer_test.cpp
+)
+
+# Create Max_Buffer test executable
+add_executable(Max_Buffer_test ${MAX_BUFFER_TEST_SOURCES})
+target_link_directories(Max_Buffer_test PRIVATE ${SystemC_LIBRARY_DIRS})
+target_link_libraries(Max_Buffer_test ${SystemC_LIBRARIES})
+
+# Source files for Sum_Buffer test executable
+set(SUM_BUFFER_TEST_SOURCES
+    test/Sum_Buffer_test.cpp
+)
+
+# Create Sum_Buffer test executable
+add_executable(Sum_Buffer_test ${SUM_BUFFER_TEST_SOURCES})
+target_link_directories(Sum_Buffer_test PRIVATE ${SystemC_LIBRARY_DIRS})
+target_link_libraries(Sum_Buffer_test ${SystemC_LIBRARIES})
+
+# Source files for Output_Buffer test executable
+set(OUTPUT_BUFFER_TEST_SOURCES
+    test/Output_Buffer_test.cpp
+)
+
+# Create Output_Buffer test executable
+add_executable(Output_Buffer_test ${OUTPUT_BUFFER_TEST_SOURCES})
+target_link_directories(Output_Buffer_test PRIVATE ${SystemC_LIBRARY_DIRS})
+target_link_libraries(Output_Buffer_test ${SystemC_LIBRARIES})
+
 # Optional: Add a custom target to run tests
 enable_testing()
 add_test(NAME MaxUnit COMMAND MaxUnit_test)
@@ -94,3 +124,6 @@ add_test(NAME Log2Exp COMMAND Log2Exp_test)
 add_test(NAME Reduction COMMAND Reduction_test)
 add_test(NAME Divider_PreCompute COMMAND Divider_PreCompute_test)
 add_test(NAME Divider COMMAND Divider_test)
+add_test(NAME Max_Buffer COMMAND Max_Buffer_test)
+add_test(NAME Sum_Buffer COMMAND Sum_Buffer_test)
+add_test(NAME Output_Buffer COMMAND Output_Buffer_test)

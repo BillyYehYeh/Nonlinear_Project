@@ -25,21 +25,21 @@ SC_MODULE(Reduction_TestBench) {
         int test_count = 0;
         int passed = 0;
 
-        // ===== Test 1: X = 0 (2^0 = 1) =====
+        // ===== Test 1: X = 0 (2^0 = 1, shifted left by 16 bits = 0x00010000) =====
         std::cout << "\n" << std::string(70, '=') << std::endl;
-        std::cout << "Test 1: X = 0 (Expected: 2^0 = 1)" << std::endl;
+        std::cout << "Test 1: X = 0 (Expected: 2^0 = 1 << 16 = 65536)" << std::endl;
         std::cout << std::string(70, '=') << std::endl;
         test_count++;
         
         X_sig.write(0);
         wait(1, SC_NS);
         
-        sc_uint32 expected = 1;
+        sc_uint32 expected = 1U << 16;
         sc_uint32 actual = Y_sig.read();
         
         std::cout << "Input X: " << X_sig.read().to_uint() << std::endl;
-        std::cout << "Expected Output: " << expected.to_uint() << std::endl;
-        std::cout << "Actual Output: " << actual.to_uint() << std::endl;
+        std::cout << "Expected Output: " << expected.to_uint() << " (0x" << std::hex << expected.to_uint() << std::dec << ")" << std::endl;
+        std::cout << "Actual Output: " << actual.to_uint() << " (0x" << std::hex << actual.to_uint() << std::dec << ")" << std::endl;
         
         if (actual == expected) {
             std::cout << "✓ PASSED" << std::endl;
@@ -48,21 +48,21 @@ SC_MODULE(Reduction_TestBench) {
             std::cout << "✗ FAILED" << std::endl;
         }
 
-        // ===== Test 2: X = 1 (2^1 = 2) =====
+        // ===== Test 2: X = 1 (2^1 = 2, shifted left by 16 bits = 0x00020000) =====
         std::cout << "\n" << std::string(70, '=') << std::endl;
-        std::cout << "Test 2: X = 1 (Expected: 2^1 = 2)" << std::endl;
+        std::cout << "Test 2: X = 1 (Expected: 2^1 = 2 << 16 = 131072)" << std::endl;
         std::cout << std::string(70, '=') << std::endl;
         test_count++;
         
         X_sig.write(1);
         wait(1, SC_NS);
         
-        expected = 2;
+        expected = 2U << 16;
         actual = Y_sig.read();
         
         std::cout << "Input X: " << X_sig.read().to_uint() << std::endl;
-        std::cout << "Expected Output: " << expected.to_uint() << std::endl;
-        std::cout << "Actual Output: " << actual.to_uint() << std::endl;
+        std::cout << "Expected Output: " << expected.to_uint() << " (0x" << std::hex << expected.to_uint() << std::dec << ")" << std::endl;
+        std::cout << "Actual Output: " << actual.to_uint() << " (0x" << std::hex << actual.to_uint() << std::dec << ")" << std::endl;
         
         if (actual == expected) {
             std::cout << "✓ PASSED" << std::endl;
@@ -71,21 +71,21 @@ SC_MODULE(Reduction_TestBench) {
             std::cout << "✗ FAILED" << std::endl;
         }
 
-        // ===== Test 3: X = 4 (2^4 = 16) =====
+        // ===== Test 3: X = 4 (2^4 = 16, shifted left by 16 bits = 0x00100000) =====
         std::cout << "\n" << std::string(70, '=') << std::endl;
-        std::cout << "Test 3: X = 4 (Expected: 2^4 = 16)" << std::endl;
+        std::cout << "Test 3: X = 4 (Expected: 2^4 = 16 << 16 = 1048576)" << std::endl;
         std::cout << std::string(70, '=') << std::endl;
         test_count++;
         
         X_sig.write(4);
         wait(1, SC_NS);
         
-        expected = 16;
+        expected = 16U << 16;
         actual = Y_sig.read();
         
         std::cout << "Input X: " << X_sig.read().to_uint() << std::endl;
-        std::cout << "Expected Output: " << expected.to_uint() << std::endl;
-        std::cout << "Actual Output: " << actual.to_uint() << std::endl;
+        std::cout << "Expected Output: " << expected.to_uint() << " (0x" << std::hex << expected.to_uint() << std::dec << ")" << std::endl;
+        std::cout << "Actual Output: " << actual.to_uint() << " (0x" << std::hex << actual.to_uint() << std::dec << ")" << std::endl;
         
         if (actual == expected) {
             std::cout << "✓ PASSED" << std::endl;
@@ -94,21 +94,21 @@ SC_MODULE(Reduction_TestBench) {
             std::cout << "✗ FAILED" << std::endl;
         }
 
-        // ===== Test 4: X = 8 (2^8 = 256) =====
+        // ===== Test 4: X = 8 (2^8 = 256, shifted left by 16 bits = 0x01000000) =====
         std::cout << "\n" << std::string(70, '=') << std::endl;
-        std::cout << "Test 4: X = 8 (Expected: 2^8 = 256)" << std::endl;
+        std::cout << "Test 4: X = 8 (Expected: 2^8 = 256 << 16 = 16777216)" << std::endl;
         std::cout << std::string(70, '=') << std::endl;
         test_count++;
         
         X_sig.write(8);
         wait(1, SC_NS);
         
-        expected = 256;
+        expected = 256U << 16;
         actual = Y_sig.read();
         
         std::cout << "Input X: " << X_sig.read().to_uint() << std::endl;
-        std::cout << "Expected Output: " << expected.to_uint() << std::endl;
-        std::cout << "Actual Output: " << actual.to_uint() << std::endl;
+        std::cout << "Expected Output: " << expected.to_uint() << " (0x" << std::hex << expected.to_uint() << std::dec << ")" << std::endl;
+        std::cout << "Actual Output: " << actual.to_uint() << " (0x" << std::hex << actual.to_uint() << std::dec << ")" << std::endl;
         
         if (actual == expected) {
             std::cout << "✓ PASSED" << std::endl;
@@ -117,21 +117,21 @@ SC_MODULE(Reduction_TestBench) {
             std::cout << "✗ FAILED" << std::endl;
         }
 
-        // ===== Test 5: X = 15 (2^15 = 32768) =====
+        // ===== Test 5: X = 15 (2^15 = 32768, shifted left by 16 bits = 0x80000000) =====
         std::cout << "\n" << std::string(70, '=') << std::endl;
-        std::cout << "Test 5: X = 15 (Expected: 2^15 = 32768)" << std::endl;
+        std::cout << "Test 5: X = 15 (Expected: 2^15 = 32768 << 16 = 2147483648)" << std::endl;
         std::cout << std::string(70, '=') << std::endl;
         test_count++;
         
         X_sig.write(15);
         wait(1, SC_NS);
         
-        expected = 32768;
+        expected = 32768U << 16;
         actual = Y_sig.read();
         
         std::cout << "Input X: " << X_sig.read().to_uint() << std::endl;
-        std::cout << "Expected Output: " << expected.to_uint() << std::endl;
-        std::cout << "Actual Output: " << actual.to_uint() << std::endl;
+        std::cout << "Expected Output: " << expected.to_uint() << " (0x" << std::hex << expected.to_uint() << std::dec << ")" << std::endl;
+        std::cout << "Actual Output: " << actual.to_uint() << " (0x" << std::hex << actual.to_uint() << std::dec << ")" << std::endl;
         
         if (actual == expected) {
             std::cout << "✓ PASSED" << std::endl;
@@ -140,21 +140,21 @@ SC_MODULE(Reduction_TestBench) {
             std::cout << "✗ FAILED" << std::endl;
         }
 
-        // ===== Test 6: X = 10 (2^10 = 1024) =====
+        // ===== Test 6: X = 10 (2^10 = 1024, shifted left by 16 bits = 0x04000000) =====
         std::cout << "\n" << std::string(70, '=') << std::endl;
-        std::cout << "Test 6: X = 10 (Expected: 2^10 = 1024)" << std::endl;
+        std::cout << "Test 6: X = 10 (Expected: 2^10 = 1024 << 16 = 67108864)" << std::endl;
         std::cout << std::string(70, '=') << std::endl;
         test_count++;
         
         X_sig.write(10);
         wait(1, SC_NS);
         
-        expected = 1024;
+        expected = 1024U << 16;
         actual = Y_sig.read();
         
         std::cout << "Input X: " << X_sig.read().to_uint() << std::endl;
-        std::cout << "Expected Output: " << expected.to_uint() << std::endl;
-        std::cout << "Actual Output: " << actual.to_uint() << std::endl;
+        std::cout << "Expected Output: " << expected.to_uint() << " (0x" << std::hex << expected.to_uint() << std::dec << ")" << std::endl;
+        std::cout << "Actual Output: " << actual.to_uint() << " (0x" << std::hex << actual.to_uint() << std::dec << ")" << std::endl;
         
         if (actual == expected) {
             std::cout << "✓ PASSED" << std::endl;
@@ -185,7 +185,7 @@ SC_MODULE(Reduction_TestBench) {
 int sc_main(int argc, char* argv[]) {
     std::cout << "\n========================================" << std::endl;
     std::cout << "Reduction Module Test Bench" << std::endl;
-    std::cout << "Function: Y = 2^X (X is 4-bit, Y is 32-bit)" << std::endl;
+    std::cout << "Function: Y = 2^X << 16 (X is 4-bit, 2^X is 16-bit, Y is 32-bit with 16-bit decimal zeros)" << std::endl;
     std::cout << "========================================" << std::endl;
 
     Reduction_TestBench tb("Reduction_TestBench");

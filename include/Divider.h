@@ -23,15 +23,15 @@ using sc_uint10 = sc_dt::sc_uint<10>;
  * FP16 Format: [sign(1) | exponent(5) | mantissa(10)]
  * 
  * Ports:
- *   - ky: 4-bit input
- *   - ks: 4-bit input
+ *   - ky: 4-bit input (right shift bits)
+ *   - ks: 4-bit input (left shift bits)
  *   - Mux_Result: 16-bit input (FP16 format)
  *   - Divider_Output: 16-bit output (FP16 format with modified exponent)
  */
 SC_MODULE(Divider_Module) {
     // Ports
-    sc_in<sc_uint4>  ky;                   ///< 4-bit input ky
-    sc_in<sc_uint4>  ks;                   ///< 4-bit input ks
+    sc_in<sc_uint4>  ky;                   ///< 4-bit input ky (right shift bits)
+    sc_in<sc_uint4>  ks;                   ///< 4-bit input ks (left shift bits)
     sc_in<sc_uint16> Mux_Result;           ///< 16-bit input (FP16 format)
     sc_out<sc_uint16> Divider_Output;      ///< 16-bit output (FP16 format)
 

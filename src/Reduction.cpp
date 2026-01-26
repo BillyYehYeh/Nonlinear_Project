@@ -9,8 +9,9 @@ sc_uint32 power_of_two(sc_uint4 X) {
     unsigned int x_val = X.to_uint();
     
     // Use left shift to compute 2^X (1 << x = 2^x)
-    sc_uint32 result = 1U << x_val;
-    
+    // Then shift left by 16 bits to attach 16 bits of decimal zeros
+    sc_uint<16> power_result = 1U << x_val;
+    sc_uint32 result = ((sc_uint32)power_result << 16);
     return result;
 }
 
