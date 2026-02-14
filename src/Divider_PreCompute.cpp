@@ -73,5 +73,5 @@ void Divider_PreCompute_Module::compute_threshold() {
         threshold = sc_uint16(0x388B);
     }
     
-    Threshold_Result.write(threshold);
+    Mux_Result.write(threshold);
 }

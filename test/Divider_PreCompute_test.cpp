@@ -19,7 +19,7 @@ SC_MODULE(Divider_PreCompute_TestBench) {
         dut = new Divider_PreCompute_Module("Divider_PreCompute_DUT");
         dut->input(input_sig);
         dut->Leading_One_Pos(leading_one_pos_sig);
-        dut->Threshold_Result(threshold_result_sig);
+        dut->Mux_Result(threshold_result_sig);
 
         SC_THREAD(test_stimulus);
     }

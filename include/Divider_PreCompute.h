@@ -41,7 +41,7 @@ SC_MODULE(Divider_PreCompute_Module) {
     // Ports
     sc_in<sc_uint32>  input;                ///< 32-bit input
     sc_out<sc_uint4>  Leading_One_Pos;      ///< 4-bit output: position of leading one
-    sc_out<sc_uint16> Threshold_Result;     ///< 16-bit output: fp16 threshold value
+    sc_out<sc_uint16> Mux_Result;     ///< 16-bit output: fp16 threshold value
 
     // Constructor
     SC_CTOR(Divider_PreCompute_Module) {
