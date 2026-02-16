@@ -47,7 +47,7 @@ void Max4_FP16_Pipeline::stage1_comb_logic() {
  * Otherwise, registers capture the combinational logic outputs.
  */
 void Max4_FP16_Pipeline::stage1_register_update() {
-    if (rst.read() == true) {   // Reset
+    if (rst.read()) {   // Reset
         R1_reg.write(0);
         R2_reg.write(0);
     } else { 

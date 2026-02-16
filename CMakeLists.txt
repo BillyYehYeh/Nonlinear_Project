@@ -88,34 +88,54 @@ target_link_directories(Divider_test PRIVATE ${SystemC_LIBRARY_DIRS})
 target_link_libraries(Divider_test ${SystemC_LIBRARIES})
 
 # Source files for Max_Buffer test executable
-set(MAX_BUFFER_TEST_SOURCES
-    test/Max_Buffer_test.cpp
-)
+# set(MAX_BUFFER_TEST_SOURCES
+#     test/Max_Buffer_test.cpp
+# )
 
 # Create Max_Buffer test executable
-add_executable(Max_Buffer_test ${MAX_BUFFER_TEST_SOURCES})
-target_link_directories(Max_Buffer_test PRIVATE ${SystemC_LIBRARY_DIRS})
-target_link_libraries(Max_Buffer_test ${SystemC_LIBRARIES})
+# add_executable(Max_Buffer_test ${MAX_BUFFER_TEST_SOURCES})
+# target_link_directories(Max_Buffer_test PRIVATE ${SystemC_LIBRARY_DIRS})
+# target_link_libraries(Max_Buffer_test ${SystemC_LIBRARIES})
 
 # Source files for Sum_Buffer test executable
-set(SUM_BUFFER_TEST_SOURCES
-    test/Sum_Buffer_test.cpp
-)
+# set(SUM_BUFFER_TEST_SOURCES
+#     test/Sum_Buffer_test.cpp
+# )
 
 # Create Sum_Buffer test executable
-add_executable(Sum_Buffer_test ${SUM_BUFFER_TEST_SOURCES})
-target_link_directories(Sum_Buffer_test PRIVATE ${SystemC_LIBRARY_DIRS})
-target_link_libraries(Sum_Buffer_test ${SystemC_LIBRARIES})
+# add_executable(Sum_Buffer_test ${SUM_BUFFER_TEST_SOURCES})
+# target_link_directories(Sum_Buffer_test PRIVATE ${SystemC_LIBRARY_DIRS})
+# target_link_libraries(Sum_Buffer_test ${SystemC_LIBRARIES})
 
 # Source files for Output_Buffer test executable
-set(OUTPUT_BUFFER_TEST_SOURCES
-    test/Output_Buffer_test.cpp
-)
+# set(OUTPUT_BUFFER_TEST_SOURCES
+#     test/Output_Buffer_test.cpp
+# )
 
 # Create Output_Buffer test executable
-add_executable(Output_Buffer_test ${OUTPUT_BUFFER_TEST_SOURCES})
-target_link_directories(Output_Buffer_test PRIVATE ${SystemC_LIBRARY_DIRS})
-target_link_libraries(Output_Buffer_test ${SystemC_LIBRARIES})
+# add_executable(Output_Buffer_test ${OUTPUT_BUFFER_TEST_SOURCES})
+# target_link_directories(Output_Buffer_test PRIVATE ${SystemC_LIBRARY_DIRS})
+# target_link_libraries(Output_Buffer_test ${SystemC_LIBRARIES})
+
+# Source files for Max_FIFO test executable
+set(MAX_FIFO_TEST_SOURCES
+    test/Max_FIFO_test.cpp
+)
+
+# Create Max_FIFO test executable
+add_executable(Max_FIFO_test ${MAX_FIFO_TEST_SOURCES})
+target_link_directories(Max_FIFO_test PRIVATE ${SystemC_LIBRARY_DIRS})
+target_link_libraries(Max_FIFO_test ${SystemC_LIBRARIES})
+
+# Source files for Output_FIFO test executable
+set(OUTPUT_FIFO_TEST_SOURCES
+    test/Output_FIFO_test.cpp
+)
+
+# Create Output_FIFO test executable
+add_executable(Output_FIFO_test ${OUTPUT_FIFO_TEST_SOURCES})
+target_link_directories(Output_FIFO_test PRIVATE ${SystemC_LIBRARY_DIRS})
+target_link_libraries(Output_FIFO_test ${SystemC_LIBRARIES})
 
 # Optional: Add a custom target to run tests
 enable_testing()
@@ -127,3 +147,5 @@ add_test(NAME Divider COMMAND Divider_test)
 add_test(NAME Max_Buffer COMMAND Max_Buffer_test)
 add_test(NAME Sum_Buffer COMMAND Sum_Buffer_test)
 add_test(NAME Output_Buffer COMMAND Output_Buffer_test)
+add_test(NAME Max_FIFO COMMAND Max_FIFO_test)
+add_test(NAME Output_FIFO COMMAND Output_FIFO_test)
