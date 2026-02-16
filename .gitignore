@@ -116,3 +116,4 @@ checkpoints/
 .vscode/
 build/
 CNN_EXAMPLE/
+**/*.log

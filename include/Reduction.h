@@ -3,46 +3,80 @@
 
 #include <systemc.h>
 #include <iostream>
+#include <vector>
 
-using sc_uint4 = sc_dt::sc_uint<4>;
+using sc_int4 = sc_dt::sc_int<4>;
 using sc_uint32 = sc_dt::sc_uint<32>;
 
 /**
- * @brief Exponential computation: 2^X where X is 4-bit input
+ * @brief Exponential-Sum Reduction Module (指數加總歸約模組)
  * 
- * Calculates 2 to the power of X, where X is a 4-bit unsigned integer.
- * This function computes 2^X and returns a 32-bit unsigned result.
+ * Computes the sum of exponential values: Output = Σ(2^(-x_i))
  * 
- * Input range: 0 to 15 (4-bit)
- * Output range: 1 to 32768 (32-bit)
+ * Architecture:
+ * - 4 parallel Power-of-Two units compute 2^(-x_i) for each 4-bit input
+ * - Binary adder tree with pipeline register for timing optimization
+ * - Stage 1: Two 32-bit adders (parallel addition of input pairs)
+ * - Pipeline Register: For timing optimization
+ * - Stage 2: One 32-bit adder (final reduction)
  * 
- * @param X 4-bit unsigned integer exponent
- * @return sc_uint32 Result of 2^X (32-bit)
- */
-sc_uint32 power_of_two(sc_uint4 X);
-
-/**
- * @brief SystemC Module for 2^X Computation
- * 
- * Combinational logic module that computes 2 to the power of a 4-bit input.
+ * Data Format:
+ * - Input: 4×4 bits (signed int4 values)
+ * - Output: 32 bits (16.16 fixed-point)
+ *   - Bits [31:16]: Integer part
+ *   - Bits [15:0]: Fractional part
+ *   - Resolution: 2^(-16)
  * 
  * Ports:
- *   - X_in: 4-bit unsigned integer input
- *   - Y_out: 32-bit unsigned integer output (2^X_in)
+ *   - clk: Clock input
+ *   - rst: Reset signal
+ *   - Input_Vector: 4×4 bits input vector (4 signed integers)
+ *   - Output_Sum: 32 bits output (16.16 fixed-point format)
  */
 SC_MODULE(Reduction_Module) {
     // Ports
-    sc_in<sc_uint4>   X_in;    ///< 4-bit input exponent
-    sc_out<sc_uint32> Y_out;   ///< 32-bit output (2^X_in)
+    sc_in<bool>                      clk;             ///< Clock input
+    sc_in<bool>                      rst;             ///< Reset signal
+    sc_in<sc_dt::sc_uint<16>>        Input_Vector;    ///< 4×4 bits packed input
+    sc_out<sc_uint32>                Output_Sum;      ///< 32-bit output (16.16 fixed-point)
+
+    // Internal signals for pipeline stages
+    sc_signal<sc_uint32> exp_out[4];                  ///< Outputs of 4 exponential units
+    sc_signal<sc_uint32> stage1_add0;                 ///< First adder output (exp[0] + exp[1])
+    sc_signal<sc_uint32> stage1_add1;                 ///< Second adder output (exp[2] + exp[3])
+    sc_signal<sc_uint32> pipe_add0_reg;               ///< Pipeline register for stage1_add0
+    sc_signal<sc_uint32> pipe_add1_reg;               ///< Pipeline register for stage1_add1
+    sc_signal<sc_uint32> final_sum;                   ///< Final sum output
 
     // Constructor
-    SC_CTOR(Reduction_Module) {
-        SC_METHOD(compute_power);
-        sensitive << X_in;
+    SC_HAS_PROCESS(Reduction_Module);
+    Reduction_Module(sc_core::sc_module_name name) : sc_core::sc_module(name) {
+        // Register processes
+        SC_METHOD(compute_exponentials);
+        sensitive << Input_Vector;
+        
+        SC_METHOD(stage1_additions);
+        sensitive << exp_out[0] << exp_out[1] << exp_out[2] << exp_out[3];
+        
+        SC_METHOD(pipeline_register_update);
+        sensitive << clk.pos();
+        
+        SC_METHOD(stage2_addition);
+        sensitive << pipe_add0_reg << pipe_add1_reg;
+        
+        SC_METHOD(update_output);
+        sensitive << final_sum;
     }
 
     // Methods
-    void compute_power();  ///< Combinational logic to compute 2^X
+    void compute_exponentials();        ///< Compute 2^(-x_i) for each input
+    void stage1_additions();             ///< Parallel addition in stage 1
+    void pipeline_register_update();    ///< Update pipeline registers on clock edge
+    void stage2_addition();              ///< Final addition in stage 2
+    void update_output();                ///< Output the final sum
+
+private:
+
 };
 
 #endif // REDUCTION_H

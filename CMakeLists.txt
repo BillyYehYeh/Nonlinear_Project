@@ -59,6 +59,7 @@ target_link_libraries(Log2Exp_test ${SystemC_LIBRARIES})
 
 # Source files for Reduction test executable
 set(REDUCTION_TEST_SOURCES
+    src/Reduction.cpp
     test/Reduction_test.cpp
 )
 
