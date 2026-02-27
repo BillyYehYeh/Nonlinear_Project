@@ -138,6 +138,18 @@ add_executable(Output_FIFO_test ${OUTPUT_FIFO_TEST_SOURCES})
 target_link_directories(Output_FIFO_test PRIVATE ${SystemC_LIBRARY_DIRS})
 target_link_libraries(Output_FIFO_test ${SystemC_LIBRARIES})
 
+# Source files for PROCESS_2 test executable
+set(PROCESS_2_TEST_SOURCES
+    src/PROCESS_2.cpp
+    src/Divider_PreCompute.cpp
+    test/PROCESS_2_test.cpp
+)
+
+# Create PROCESS_2 test executable
+add_executable(PROCESS_2_test ${PROCESS_2_TEST_SOURCES})
+target_link_directories(PROCESS_2_test PRIVATE ${SystemC_LIBRARY_DIRS})
+target_link_libraries(PROCESS_2_test ${SystemC_LIBRARIES})
+
 # Optional: Add a custom target to run tests
 enable_testing()
 add_test(NAME MaxUnit COMMAND MaxUnit_test)
@@ -150,3 +162,4 @@ add_test(NAME Sum_Buffer COMMAND Sum_Buffer_test)
 add_test(NAME Output_Buffer COMMAND Output_Buffer_test)
 add_test(NAME Max_FIFO COMMAND Max_FIFO_test)
 add_test(NAME Output_FIFO COMMAND Output_FIFO_test)
+add_test(NAME PROCESS_2 COMMAND PROCESS_2_test)

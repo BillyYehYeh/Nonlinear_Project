@@ -6,6 +6,7 @@
 #include <vector>
 
 using sc_int4 = sc_dt::sc_int<4>;
+using sc_int16 = sc_dt::sc_int<16>;
 using sc_uint32 = sc_dt::sc_uint<32>;
 
 /**
@@ -37,7 +38,7 @@ SC_MODULE(Reduction_Module) {
     // Ports
     sc_in<bool>                      clk;             ///< Clock input
     sc_in<bool>                      rst;             ///< Reset signal
-    sc_in<sc_dt::sc_uint<16>>        Input_Vector;    ///< 4×4 bits packed input
+    sc_in<sc_uint16>        Input_Vector;    ///< 4×4 bits packed input
     sc_out<sc_uint32>                Output_Sum;      ///< 32-bit output (16.16 fixed-point)
 
     // Internal signals for pipeline stages

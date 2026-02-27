@@ -36,7 +36,7 @@ sc_uint16 fp16_max(sc_uint16 a_bits, sc_uint16 b_bits);
  *   - A, B, C, D: 4x 16-bit FP16 input ports
  *   - Max_Out: 16-bit FP16 output port
  */
-SC_MODULE(Max4_FP16_Pipeline) {
+SC_MODULE(MaxUnit) {
     // Ports
     sc_in<bool>      clk, rst;        ///< Clock and reset signals
     sc_in<sc_uint16> A, B, C, D;      ///< 4x FP16 input ports
@@ -54,7 +54,7 @@ SC_MODULE(Max4_FP16_Pipeline) {
     /**
      * @brief Constructor - Set up sensitivity lists and method bindings
      */
-    SC_CTOR(Max4_FP16_Pipeline) {
+    SC_CTOR(MaxUnit) {
         SC_METHOD(stage1_comb_logic);
         sensitive << A << B << C << D; 
         SC_METHOD(stage1_register_update);
