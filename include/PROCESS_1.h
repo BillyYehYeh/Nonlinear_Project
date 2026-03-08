@@ -13,58 +13,157 @@ using sc_uint16 = sc_dt::sc_uint<16>;
 using sc_uint32 = sc_dt::sc_uint<32>;
 using sc_uint64 = sc_dt::sc_uint<64>;
 
-/**
- * @brief FP16 subtraction function
- * 
- * Performs subtraction of two FP16 values represented as 16-bit unsigned integers.
- * Returns the result as a 16-bit FP16 value.
- * 
- * @param a_bits First FP16 value (a_bits - b_bits)
- * @param b_bits Second FP16 value to subtract
- * @return sc_uint16 Result of subtraction (FP16 format)
- */
-sc_uint16 fp16_subtract(sc_uint16 a_bits, sc_uint16 b_bits);
+// ===== Data structures for PROCESS_1 pipeline =====
+namespace process1_pipeline {
 
 /**
- * @brief Struct to hold 4 fp16 values (DataIn[4])
+ * @brief Struct to hold 4 fp16 values (DataIn[4]) + validity flag
  */
 struct Stage1_Data {
     sc_uint16 DataIn[4];  // 4 fp16 values
+    bool data_valid;      // Validity flag: 1=data from successful read, 0=no valid data
 };
 
 /**
- * @brief Struct for Pipeline Stage 2: Max_Out and 4 fp16 inputs
+ * @brief Struct for Pipeline Stage 2: Max_Out and 4 fp16 inputs + validity flag
  */
 struct Stage2_Data {
     sc_uint16 Max_Out;    // Maximum value from MaxUnit
     sc_uint16 DataIn[4];  // 4 fp16 input values
+    bool data_valid;      // Validity flag: inherited from Stage1
 };
 
 /**
- * @brief Struct for Pipeline Stage 3: 5 fp16 values (4 subtraction results + 1 global max subtraction)
+ * @brief Struct for Pipeline Stage 3: 5 fp16 values (4 subtraction results + 1 global max subtraction) + validity flag
  */
 struct Stage3_Data {
     sc_uint16 diff[5];    // 5 fp16 subtraction results
                           // diff[0..3]: DataIn[i] - Max_Out
                           // diff[4]: Max_Out - Global_Max
+    bool data_valid;      // Validity flag: inherited from Stage2
 };
 
 /**
- * @brief Struct for Pipeline Stage 4: 5 4-bit values from Log2Exp
+ * @brief Struct for Pipeline Stage 4: 5 4-bit values from Log2Exp + validity flag
  */
 struct Stage4_Data {
     sc_uint4 power[5];    // 5 4-bit outputs from Log2Exp modules
                           // power[0..3]: from DataIn[i] - Max_Out
                           // power[4]: from Max_Out - Global_Max
+    bool data_valid;      // Validity flag: inherited from Stage3
 };
 
 /**
- * @brief Struct for Pipeline Stage 5: Packed power vector and right shift amount
+ * @brief Struct for Pipeline Stage 5: Packed power vector and right shift amount + validity flag
  */
 struct Stage5_Data {
     sc_uint16 Power_of_Two_Vector;    ///< Packed 16-bit (4x 4-bit exponents)
     sc_uint4 Right_Shift_Num;         ///< 4-bit right shift amount
+    bool data_valid;                  ///< Validity flag: inherited from Stage4
 };
+
+} // namespace process1_pipeline
+
+// ===== Operator overloads for SystemC compatibility =====
+namespace sc_core {
+    // operator== for Stage1_Data
+    inline bool operator==(const process1_pipeline::Stage1_Data& lhs, const process1_pipeline::Stage1_Data& rhs) {
+        if (lhs.data_valid != rhs.data_valid) return false;
+        for (int i = 0; i < 4; i++) {
+            if (lhs.DataIn[i].to_uint() != rhs.DataIn[i].to_uint()) return false;
+        }
+        return true;
+    }
+    
+    // operator<< for Stage1_Data
+    inline std::ostream& operator<<(std::ostream& os, const process1_pipeline::Stage1_Data& data) {
+        os << "Stage1_Data[valid=" << data.data_valid << ", data=(";
+        for (int i = 0; i < 4; i++) {
+            os << std::hex << data.DataIn[i].to_uint();
+            if (i < 3) os << ",";
+        }
+        os << std::dec << ")]";
+        return os;
+    }
+    
+    // operator== for Stage2_Data
+    inline bool operator==(const process1_pipeline::Stage2_Data& lhs, const process1_pipeline::Stage2_Data& rhs) {
+        if (lhs.data_valid != rhs.data_valid) return false;
+        if (lhs.Max_Out.to_uint() != rhs.Max_Out.to_uint()) return false;
+        for (int i = 0; i < 4; i++) {
+            if (lhs.DataIn[i].to_uint() != rhs.DataIn[i].to_uint()) return false;
+        }
+        return true;
+    }
+    
+    // operator<< for Stage2_Data
+    inline std::ostream& operator<<(std::ostream& os, const process1_pipeline::Stage2_Data& data) {
+        os << "Stage2_Data[valid=" << data.data_valid << ", max=" << std::hex << data.Max_Out.to_uint() 
+           << ", data=(";
+        for (int i = 0; i < 4; i++) {
+            os << data.DataIn[i].to_uint();
+            if (i < 3) os << ",";
+        }
+        os << std::dec << ")]";
+        return os;
+    }
+    
+    // operator== for Stage3_Data
+    inline bool operator==(const process1_pipeline::Stage3_Data& lhs, const process1_pipeline::Stage3_Data& rhs) {
+        if (lhs.data_valid != rhs.data_valid) return false;
+        for (int i = 0; i < 5; i++) {
+            if (lhs.diff[i].to_uint() != rhs.diff[i].to_uint()) return false;
+        }
+        return true;
+    }
+    
+    // operator<< for Stage3_Data
+    inline std::ostream& operator<<(std::ostream& os, const process1_pipeline::Stage3_Data& data) {
+        os << "Stage3_Data[valid=" << data.data_valid << ", diff=(";
+        for (int i = 0; i < 5; i++) {
+            os << std::hex << data.diff[i].to_uint();
+            if (i < 4) os << ",";
+        }
+        os << std::dec << ")]";
+        return os;
+    }
+    
+    // operator== for Stage4_Data
+    inline bool operator==(const process1_pipeline::Stage4_Data& lhs, const process1_pipeline::Stage4_Data& rhs) {
+        if (lhs.data_valid != rhs.data_valid) return false;
+        for (int i = 0; i < 5; i++) {
+            if (lhs.power[i].to_uint() != rhs.power[i].to_uint()) return false;
+        }
+        return true;
+    }
+    
+    // operator<< for Stage4_Data
+    inline std::ostream& operator<<(std::ostream& os, const process1_pipeline::Stage4_Data& data) {
+        os << "Stage4_Data[valid=" << data.data_valid << ", power=(";
+        for (int i = 0; i < 5; i++) {
+            os << (int)data.power[i].to_uint();
+            if (i < 4) os << ",";
+        }
+        os << ")]";
+        return os;
+    }
+    
+    // operator== for Stage5_Data
+    inline bool operator==(const process1_pipeline::Stage5_Data& lhs, const process1_pipeline::Stage5_Data& rhs) {
+        if (lhs.data_valid != rhs.data_valid) return false;
+        if (lhs.Power_of_Two_Vector.to_uint() != rhs.Power_of_Two_Vector.to_uint()) return false;
+        if (lhs.Right_Shift_Num.to_uint() != rhs.Right_Shift_Num.to_uint()) return false;
+        return true;
+    }
+    
+    // operator<< for Stage5_Data
+    inline std::ostream& operator<<(std::ostream& os, const process1_pipeline::Stage5_Data& data) {
+        os << "Stage5_Data[valid=" << data.data_valid << ", pow_vector=" << std::hex 
+           << data.Power_of_Two_Vector.to_uint() << ", shift=" << (int)data.Right_Shift_Num.to_uint() 
+           << std::dec << "]";
+        return os;
+    }
+}
 
 /**
  * @brief PROCESS_1 Module - Exponential Processing Pipeline
@@ -81,14 +180,18 @@ SC_MODULE(PROCESS_1_Module) {
     // ===== Input Ports =====
     sc_in<bool>              clk;               ///< Clock input
     sc_in<bool>              rst;               ///< Reset input
+    sc_in<bool>              enable;            ///< Enable signal (1=active, 0=stall)
     sc_in<sc_uint64>         DataIn_64bits;     ///< 64-bit input (4x fp16)
     sc_in<sc_uint16>         Global_Max;        ///< Global maximum (uint16)
     sc_in<sc_uint32>         Sum_Buffer_In;     ///< 32-bit accumulator input
+    sc_in<bool>              data_valid;        ///< Data validity flag (from AXI read)
     
     // ===== Output Ports =====
     sc_out<sc_uint16>        Power_of_Two_Vector;  ///< 16-bit packed 4-bit exponents
     sc_out<sc_uint32>        Sum_Buffer_Update;    ///< 32-bit accumulator output
     sc_out<sc_uint16>        Local_Max_Output;     ///< 16-bit Local output to Max Buffer
+    sc_out<bool>             stage1_valid;         ///< Stage1 data valid flag (for Max_FIFO control)
+    sc_out<bool>             stage5_valid;         ///< Stage5 data valid flag (for Output_FIFO control)
 
     // ===== Internal Signals =====
     
@@ -106,28 +209,28 @@ SC_MODULE(PROCESS_1_Module) {
 
     // Log2Exp module instantiation (Between Stage 3 and 4)
     Log2Exp                  *log2exp_units[5];    ///< 5 Log2Exp module instances
-    sc_signalsc_uint16>   log2exp_in[5];        ///< 5 16-bit inputs to Log2Exp modules
+    sc_signal<sc_uint16>   log2exp_in[5];        ///< 5 16-bit inputs to Log2Exp modules
     sc_signal<sc_uint4>    log2exp_out[5];       ///< 5 4-bit outputs from Log2Exp modules
     
     // Pipeline Stage 1: Next and Register (Stage1_Data: DataIn[4])
-    sc_signal<Stage1_Data>   Stage1_Next;          ///< Stage 1 combinational output
-    sc_signal<Stage1_Data>   Stage1_Reg;           ///< Stage 1 registered output
+    sc_signal<process1_pipeline::Stage1_Data>   Stage1_Next;          ///< Stage 1 combinational output
+    sc_signal<process1_pipeline::Stage1_Data>   Stage1_Reg;           ///< Stage 1 registered output
     
     // Pipeline Stage 2: Next and Register (Stage2_Data: DataIn[4] + MaxUnit Output)
-    sc_signal<Stage2_Data>   Stage2_Next;          ///< Stage 2 combinational output
-    sc_signal<Stage2_Data>   Stage2_Reg;           ///< Stage 2 registered output
+    sc_signal<process1_pipeline::Stage2_Data>   Stage2_Next;          ///< Stage 2 combinational output
+    sc_signal<process1_pipeline::Stage2_Data>   Stage2_Reg;           ///< Stage 2 registered output
     
     // Pipeline Stage 3: Next and Register (Stage3_Data: 5 fp16 differences)
-    sc_signal<Stage3_Data>   Stage3_Next;          ///< Stage 3 combinational output
-    sc_signal<Stage3_Data>   Stage3_Reg;           ///< Stage 3 registered output
+    sc_signal<process1_pipeline::Stage3_Data>   Stage3_Next;          ///< Stage 3 combinational output
+    sc_signal<process1_pipeline::Stage3_Data>   Stage3_Reg;           ///< Stage 3 registered output
     
     // Pipeline Stage 4: Next and Register (Stage4_Data: 5 4-bit values)
-    sc_signal<Stage4_Data>   Stage4_Next;          ///< Stage 4 combinational output
-    sc_signal<Stage4_Data>   Stage4_Reg;           ///< Stage 4 registered output
+    sc_signal<process1_pipeline::Stage4_Data>   Stage4_Next;          ///< Stage 4 combinational output
+    sc_signal<process1_pipeline::Stage4_Data>   Stage4_Reg;           ///< Stage 4 registered output
     
     // Pipeline Stage 5: Next and Register (Stage5_Data: power vector and right shift)
-    sc_signal<Stage5_Data>   Stage5_Next;          ///< Stage 5 combinational output
-    sc_signal<Stage5_Data>   Stage5_Reg;           ///< Stage 5 registered output
+    sc_signal<process1_pipeline::Stage5_Data>   Stage5_Next;          ///< Stage 5 combinational output
+    sc_signal<process1_pipeline::Stage5_Data>   Stage5_Reg;           ///< Stage 5 registered output
     
 
     

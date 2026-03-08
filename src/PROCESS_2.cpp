@@ -62,13 +62,17 @@ void PROCESS_2_Module::Output_Stall() {
         Output_Reg_Lo_Pos.write(0);
         Output_Reg_Mux_Result.write(0);
     } 
+    else if (enable.read() == false) {
+        // ENABLE LOW: Module disabled, hold all outputs (stall)
+        // Registers maintain current values (no write occurs)
+    }
     else if (stall_output.read() == false) {
-        // NO STALL: Update registers with new values from Divider_PreCompute
+        // NO STALL & ENABLE HIGH: Update registers with new values from Divider_PreCompute
         // stall_output=0 allows new data to propagate through the pipeline
         Output_Reg_Lo_Pos.write(Leading_One_Pos_Out_Signal.read());
         Output_Reg_Mux_Result.write(Mux_Result_Out_Signal.read());
     }
-    // STALL: else condition - registers maintain current values (no write occurs)
+    // STALL & ENABLE HIGH: else condition - registers maintain current values (no write occurs)
     // This prevents data propagation downstream when pipeline needs to be held
 }
 

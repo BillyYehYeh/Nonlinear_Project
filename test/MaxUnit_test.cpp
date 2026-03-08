@@ -4,18 +4,15 @@
 #include <cassert>
 #include "MaxUnit.h"
 
-// Include the implementation from MaxUnit.cpp to get the module definition and functions
-#include "../src/MaxUnit.cpp"
-
 SC_MODULE(MaxUnit_TestBench) {
     sc_signal<bool> clk_sig, rst_sig;
     sc_signal<sc_uint16> A_sig, B_sig, C_sig, D_sig;
     sc_signal<sc_uint16> Max_Out_sig;
 
-    Max4_FP16_Pipeline *dut;
+    MaxUnit *dut;
 
     SC_CTOR(MaxUnit_TestBench) {
-        dut = new Max4_FP16_Pipeline("MaxUnit_DUT");
+        dut = new MaxUnit("MaxUnit_DUT");
         dut->clk(clk_sig);
         dut->rst(rst_sig);
         dut->A(A_sig);

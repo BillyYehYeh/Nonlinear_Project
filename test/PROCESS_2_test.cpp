@@ -9,6 +9,7 @@ SC_MODULE(PROCESS_2_TestBench) {
     // Clock and control signals
     sc_clock                 clk;
     sc_signal<bool>          rst;
+    sc_signal<bool>          enable;
     sc_signal<bool>          stall_output;
     sc_signal<sc_uint32>     pre_compute_in;
     
@@ -23,6 +24,7 @@ SC_MODULE(PROCESS_2_TestBench) {
         dut = new PROCESS_2_Module("PROCESS_2_DUT");
         dut->clk(clk);
         dut->rst(rst);
+        dut->enable(enable);
         dut->stall_output(stall_output);
         dut->Pre_Compute_In(pre_compute_in);
         dut->Leading_One_Pos_Out(leading_one_pos_out);
@@ -52,12 +54,13 @@ SC_MODULE(PROCESS_2_TestBench) {
         std::cout << "\nModule Overview:" << std::endl;
         std::cout << "  - Wraps Divider_PreCompute_Module" << std::endl;
         std::cout << "  - Adds output stalling capability via Output_Reg signals" << std::endl;
-        std::cout << "  - Inputs:  clk, rst, stall_output, Pre_Compute_In (32-bit)" << std::endl;
+        std::cout << "  - Inputs:  clk, rst, enable, stall_output, Pre_Compute_In (32-bit)" << std::endl;
         std::cout << "  - Outputs: Leading_One_Pos_Out (4-bit), Mux_Result_Out (16-bit)" << std::endl;
         std::cout << std::string(120, '=') << std::endl;
 
         // Initialize all signals
         rst.write(false);
+        enable.write(true);
         stall_output.write(false);
         pre_compute_in.write(0);
         
@@ -68,6 +71,7 @@ SC_MODULE(PROCESS_2_TestBench) {
         std::cout << "\n>>> TEST CASE 1: Reset Behavior" << std::endl;
         std::cout << std::string(100, '-') << std::endl;
         rst.write(true);
+        enable.write(true);
         stall_output.write(false);
         pre_compute_in.write(0);
         wait(10, SC_NS);

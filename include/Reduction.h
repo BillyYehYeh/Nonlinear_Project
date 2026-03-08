@@ -7,6 +7,8 @@
 
 using sc_int4 = sc_dt::sc_int<4>;
 using sc_int16 = sc_dt::sc_int<16>;
+using sc_uint4 = sc_dt::sc_uint<4>;
+using sc_uint16 = sc_dt::sc_uint<16>;
 using sc_uint32 = sc_dt::sc_uint<32>;
 
 /**

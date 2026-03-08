@@ -10,8 +10,9 @@ void Log2Exp::process() {
     // FP16 format: [Sign(1)] [Exponent(5 bits)] [Mantissa(10 bits)]
     // Exponent range: 0-31, with bias of 15
     // =======================================================================
-    sc_bv<5> exp_bits = fp16_in.read().range(14, 10);
-    sc_bv<10> mant_bits = fp16_in.read().range(9, 0);  
+    sc_dt::sc_uint<16> fp16_val = fp16_in.read();
+    sc_dt::sc_uint<5> exp_bits = fp16_val.range(14, 10);
+    sc_dt::sc_uint<10> mant_bits = fp16_val.range(9, 0);  
     int exponent_val = (int)exp_bits.to_uint();  // FP16 exponent value (0-31)
 
     // =======================================================================
@@ -19,7 +20,9 @@ void Log2Exp::process() {
     // Fixed-point format Q1.4: 1 integer bit + 4 fractional bits
     // Result: [implicit_1(1)] [mant_bits(10)] [padding(4)] = 18 bits total
     // =======================================================================
-    sc_uint<18> mant_val = (sc_bv<4>(1), mant_bits, sc_bv<4>(0)).to_uint();        
+    sc_dt::sc_uint<4> one_bits = 1;
+    sc_dt::sc_uint<4> zero_bits = 0;
+    sc_uint<18> mant_val = ((one_bits.to_uint() << 14) | (mant_bits.to_uint() << 4)) & 0x3FFFF;
     sc_uint<18> op1 = mant_val;                                     
     sc_uint<18> op2 = (mant_val >> 1) ;                             
     sc_uint<18> op3 = (mant_val >> 4) ;                             
@@ -48,14 +51,13 @@ void Log2Exp::process() {
         // If actual exponent is positive, shift LEFT (move decimal point right)
         shifted_value = (sum << actual_exp_val);         // shifted_value with exponent applied
     }
-    sc_bv<18> shifted_value_bv = shifted_value;
 
     // =======================================================================
     // Step 5: Extract result bits
     // Extract bits [17:14] to get 4-bit integer result
     // These bits represent the integer portion after fixed-point operations
     // =======================================================================
-    sc_bv<4> shift_res = shifted_value.range(17, 14).to_uint();  // Extract bits [17:14]
+    sc_dt::sc_uint<4> shift_res = shifted_value.range(17, 14).to_uint();  // Extract bits [17:14]
     
     // =======================================================================
     // Step 6: Multiplexer logic - Select output based on exponent
@@ -64,7 +66,7 @@ void Log2Exp::process() {
     // exponent_val == 18 AND sum[15]==1: Output 0xF (transition boundary)
     // else: Output computed shift_res
     // =======================================================================
-    sc_bv<4> output;
+    sc_dt::sc_uint<4> output;
     if (exponent_val <= 13) {
         output = 0x0;  // 0000 - exponent too small
     } else if (exponent_val >= 19) {

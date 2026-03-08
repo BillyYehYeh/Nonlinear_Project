@@ -12,14 +12,6 @@ using sc_uint16 = sc_dt::sc_uint<16>;
  * Compares two FP16 values represented as 16-bit unsigned integers and returns
  * the maximum value according to FP16 comparison rules:
  * - Positive numbers are always greater than negative numbers
- * - For numbers with the same sign, compares exponent+mantissa field
- * 
- * @param a_bits First FP16 value (16-bit representation)
- * @param b_bits Second FP16 value (16-bit representation)
- * @return sc_uint16 Maximum of the two values
- */
-sc_uint16 fp16_max(sc_uint16 a_bits, sc_uint16 b_bits);
-
 /**
  * @brief 4-Input FP16 Maximum Finder with 2-Stage Pipeline
  * 

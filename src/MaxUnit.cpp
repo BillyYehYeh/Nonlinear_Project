@@ -1,32 +1,6 @@
 #include "MaxUnit.h"
+#include "utils.h"
 
-/**
- * @brief Implementation of fp16_max - Binary FP16 maximum operation
- */
-sc_uint16 fp16_max(sc_uint16 a_bits, sc_uint16 b_bits) {
-    // Get Sign Bit
-    bool a_sign = a_bits[15];
-    bool b_sign = b_bits[15];
-    
-    // Get Exponent + Mantissa
-    sc_uint<15> a_rest = a_bits.range(14, 0);
-    sc_uint<15> b_rest = b_bits.range(14, 0);
-
-    // (Sign Bit) compare
-    if (a_sign == 0 && b_sign == 1) {
-        return a_bits;
-    }
-    if (a_sign == 1 && b_sign == 0) {
-        return b_bits;
-    }
-
-    // (Exponent + Mantissa) compare
-    if (a_sign == 0 && b_sign == 0) {       // Positive
-        return (a_rest >= b_rest) ? a_bits : b_bits;
-    } else {                                // Negative
-        return (a_rest <= b_rest) ? a_bits : b_bits;
-    }
-}
 /**
  * @brief Stage 1 Combinational Logic - Parallel FP16 Comparisons
  * 

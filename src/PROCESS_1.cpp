@@ -2,12 +2,14 @@
 #include "utils.h"
 #include <cmath>
 
+using namespace process1_pipeline;
+
 /**
  * @brief FP16 subtraction implementation
  * 
  * Performs subtraction of two FP16 values using utility function.
  */
-sc_uint16 fp16_subtract(sc_uint16 a_bits, sc_uint16 b_bits) {
+static sc_uint16 fp16_subtract(sc_uint16 a_bits, sc_uint16 b_bits) {
     sc_uint16 r = fp16_add((fp16_t)(a_bits.to_uint()), (fp16_t)(b_bits.to_uint()) ^ 0x8000);
     return r;
 }
@@ -194,14 +196,16 @@ void PROCESS_1_Module::Pipeline_Update() {
         reset_data5.Power_of_Two_Vector = 0;
         reset_data5.Right_Shift_Num = 0;
         Stage5_Reg.write(reset_data5);
-    } else {
-        // Update pipeline registers
+    } 
+    else if (enable.read()) {
+        // Enable signal high: Update pipeline registers (normal operation)
         Stage1_Reg.write(Stage1_Next.read());
         Stage2_Reg.write(Stage2_Next.read());
         Stage3_Reg.write(Stage3_Next.read());
         Stage4_Reg.write(Stage4_Next.read());
         Stage5_Reg.write(Stage5_Next.read());
     }
+    // else: enable signal low, hold all pipeline stages (no update)
 }
 
 /**

@@ -52,6 +52,7 @@ SC_MODULE(PROCESS_2_Module) {
     // ===== Input Ports =====
     sc_in<bool>              clk;                  ///< Clock signal (synchronizes stall register updates)
     sc_in<bool>              rst;                  ///< Reset signal (forces output registers to 0)
+    sc_in<bool>              enable;               ///< Enable signal (1=active, 0=stall)
     sc_in<bool>              stall_output;         ///< Stall control (1=hold, 0=update)
     sc_in<sc_uint32>         Pre_Compute_In;       ///< 32-bit fixed-point input (16-bit integer|16-bit decimal)
     

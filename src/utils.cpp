@@ -247,3 +247,38 @@ fp16_t fp16_add(fp16_t a, fp16_t b) {
 
     return (sign_res << 15) | ((exp_res & 0x1F) << 10) | frac;
 }
+
+/**
+ * @brief FP16 Maximum Operation
+ * 
+ * Compares two FP16 values and returns the maximum.
+ * Handles both positive and negative FP16 values correctly.
+ * 
+ * @param a_bits First FP16 value
+ * @param b_bits Second FP16 value
+ * @return sc_uint16 The maximum of a_bits and b_bits
+ */
+sc_uint16 fp16_max(sc_uint16 a_bits, sc_uint16 b_bits) {
+    // Get Sign Bit
+    bool a_sign = a_bits[15];
+    bool b_sign = b_bits[15];
+    
+    // Get Exponent + Mantissa
+    sc_dt::sc_uint<15> a_rest = a_bits.range(14, 0);
+    sc_dt::sc_uint<15> b_rest = b_bits.range(14, 0);
+
+    // (Sign Bit) compare
+    if (a_sign == 0 && b_sign == 1) {
+        return a_bits;
+    }
+    if (a_sign == 1 && b_sign == 0) {
+        return b_bits;
+    }
+
+    // (Exponent + Mantissa) compare
+    if (a_sign == 0 && b_sign == 0) {       // Positive
+        return (a_rest >= b_rest) ? a_bits : b_bits;
+    } else {                                // Negative
+        return (a_rest <= b_rest) ? a_bits : b_bits;
+    }
+}
