@@ -1,6 +1,8 @@
 #include "Log2Exp.h"
 #include <iostream>
 #include <bitset>
+#include <iomanip>
+
 
 
 

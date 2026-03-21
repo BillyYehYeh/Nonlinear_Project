@@ -24,6 +24,7 @@ using sc_uint10 = sc_dt::sc_uint<10>;
  *   - data_out: 16-bit uint16 output (1-cycle latency from SRAM)
  *   - full: Full flag output
  *   - empty: Empty flag output
+ *   - count: Number of elements currently in FIFO
  */
 SC_MODULE(Output_FIFO) {
     // Ports
@@ -36,6 +37,7 @@ SC_MODULE(Output_FIFO) {
     sc_out<sc_uint16> data_out;         ///< 16-bit uint16 output
     sc_out<bool>      full;             ///< Full flag
     sc_out<bool>      empty;            ///< Empty flag
+    sc_out<sc_uint10> count;            ///< Number of elements currently in FIFO
 
     // SRAM instance (10-bit address = 1024 entries, 16-bit data)
     SRAM<10, 16> *sram;
@@ -44,6 +46,9 @@ SC_MODULE(Output_FIFO) {
     sc_signal<sc_uint10> write_addr_sig; ///< Write pointer
     sc_signal<sc_uint10> read_addr_sig;  ///< Read pointer
     sc_signal<sc_uint16> sram_rdata_sig; ///< SRAM read data
+    // Gated SRAM control signals (prevent writes when full, reads when empty)
+    sc_signal<bool> we_sig;
+    sc_signal<bool> re_sig;
     
     // Constructor
     SC_HAS_PROCESS(Output_FIFO);
@@ -54,8 +59,8 @@ SC_MODULE(Output_FIFO) {
         // Connect SRAM ports
         sram->clk(clk);
         sram->rst(rst);
-        sram->we(write_en);
-        sram->re(read_en);
+        sram->we(we_sig);
+        sram->re(re_sig);
         sram->waddr(write_addr_sig);
         sram->raddr(read_addr_sig);
         sram->wdata(data_in);
@@ -68,14 +73,26 @@ SC_MODULE(Output_FIFO) {
         SC_METHOD(pointer_update);
         sensitive << clk.pos();
         
+        // Gate write/read enables combinationally so SRAM never writes when full
+        // and never reads when empty.
+        SC_METHOD(gate_signals);
+        sensitive << write_en << read_en << full << empty;
+        
         SC_METHOD(read_output);
         sensitive << sram_rdata_sig;
+
+        SC_METHOD(Print_FIFO_SRAM);
+        sensitive << clk.pos();
+
+
     }
 
     // Methods
     void update_flags();                ///< Updates full and empty flags
     void pointer_update();              ///< Updates read/write pointers on clock
     void read_output();                 ///< Propagates SRAM read data to output
+    void gate_signals();                 ///< Gate write/read enables against full/empty
+    void Print_FIFO_SRAM();              ///< Debug: Print entire SRAM contents
 };
 
 #endif // OUTPUT_FIFO_H

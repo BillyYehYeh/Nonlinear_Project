@@ -1,6 +1,7 @@
 #include "PROCESS_2.h"
-#include "utils.h"
+#include "utils.hpp"
 #include <cmath>
+#include <iomanip>
 
 /**
  * @brief Input Combinational Logic
@@ -75,4 +76,23 @@ void PROCESS_2_Module::Output_Stall() {
     // STALL & ENABLE HIGH: else condition - registers maintain current values (no write occurs)
     // This prevents data propagation downstream when pipeline needs to be held
 }
+/*
+void PROCESS_2_Module::Print_Stage_Regs() {
+    const char* YELLOW = "\033[36m";
+    const char* RESET  = "\033[0m";
 
+    sc_uint4 lo_pos = Output_Reg_Lo_Pos.read();
+    sc_uint16 mux_result = Output_Reg_Mux_Result.read();
+
+    std::cerr << YELLOW;
+    std::cerr << "[PROCESS_2] @" << sc_time_stamp() << "\n";
+    std::cerr << " Pre_Compute_In: " << Pre_Compute_In.read() << "\n";
+    std::cerr << " Pre_Compute_In_Signal: " << Pre_Compute_In_Signal.read() << "\n";
+    std::cerr << " Leading_One_Pos_Out_Signal: " << Leading_One_Pos_Out_Signal.read() << "\n";
+    std::cerr << " Mux_Result_Out_Signal: " << Mux_Result_Out_Signal.read() << "\n";
+    std::cerr << " Output_Reg_Lo_Pos: " << static_cast<uint16_t>(lo_pos) << "\n";
+    std::cerr << " Output_Reg_Mux_Result: 0x" << std::hex << std::uppercase << std::setw(4) 
+              << std::setfill('0') << mux_result << std::dec << std::setfill(' ') << "\n";
+    std::cerr << RESET << std::flush;
+}
+*/

@@ -1,4 +1,5 @@
 #include "Output_FIFO.h"
+#include <iomanip>
 
 /**
  * @brief Update full and empty flags based on pointers
@@ -16,6 +17,10 @@ void Output_FIFO::update_flags() {
     // FIFO is full when next write would overwrite read pointer
     bool is_full = (((w_ptr + 1) & 0x3FF) == r_ptr);
     full.write(is_full);
+    
+    // Occupancy: difference between write and read pointers (modulo 1024)
+    sc_uint10 occupancy = w_ptr - r_ptr;
+    count.write(occupancy);
 }
 
 /**
@@ -38,12 +43,14 @@ void Output_FIFO::pointer_update() {
         read_addr_sig.write(write_addr_sig.read());
     } else {
         // Normal operation
-        if (write_en.read()) {
+        // Only advance pointers when not full/empty respectively
+        if (write_en.read() && !full.read()) {
             sc_uint10 w_ptr = write_addr_sig.read();
             write_addr_sig.write((w_ptr + 1) & 0x3FF);  // Modulo 1024
+            std::cerr << "\033[32m" << "[OUTPUT_FIFO] Push Count: " << count.read() << "  Push Data: "<< "0x" << std::hex << data_in.read() << std::dec << "\033[0m" << "  @ " << sc_time_stamp() << std::endl;
         }
-        
-        if (read_en.read()) {
+
+        if (read_en.read() && !empty.read()) {
             sc_uint10 r_ptr = read_addr_sig.read();
             read_addr_sig.write((r_ptr + 1) & 0x3FF);   // Modulo 1024
         }
@@ -58,4 +65,65 @@ void Output_FIFO::pointer_update() {
  */
 void Output_FIFO::read_output() {
     data_out.write(sram_rdata_sig.read());
+}
+
+void Output_FIFO::gate_signals() {
+    bool we = write_en.read() && !full.read();
+    bool re = read_en.read() && !empty.read();
+    we_sig.write(we);
+    re_sig.write(re);
+}
+
+void Output_FIFO::Print_FIFO_SRAM() {
+    sc_uint10 w_ptr = write_addr_sig.read();
+    sc_uint10 r_ptr = read_addr_sig.read();
+    std::cerr << sc_time_stamp() << " " << "\033[35m" << "[OUTPUT_FIFO] SRAM State (push order): " << std::endl;
+
+    // Compute occupancy (number of stored elements)
+    sc_uint10 occ = w_ptr - r_ptr;
+    bool anyPrinted = false;
+    if (occ != 0) {
+        // Print entries from read pointer up to (but not including) write pointer
+        // Group output: five printed data entries per line.
+        unsigned printed_in_line = 0;
+        const std::size_t column_width = 26; // fixed width per entry including markers
+        for (unsigned k = 0; k < static_cast<unsigned>(occ); ++k) {
+            unsigned idx = (static_cast<unsigned>(r_ptr.to_uint()) + k) & 0x3FFu;
+            sc_uint16 data = sram->debug_peek(static_cast<int>(idx));
+
+            // Print all entries including zeros
+            anyPrinted = true;
+
+            // Build the entry string, append markers, then pad to fixed width
+            std::ostringstream oss;
+            oss << "  [" << std::setw(3) << idx << "] 0x"
+                << std::hex << std::setw(4) << std::setfill('0') << static_cast<uint16_t>(data)
+                << std::dec << std::setfill(' ');
+
+            // Markers
+            if (idx == r_ptr.to_uint()) oss << " <-R";
+            if (idx == ((w_ptr.to_uint() + 1023) & 0x3FF)) oss << " <-last";
+
+            std::string entry = oss.str();
+            if (entry.size() < column_width) entry.append(column_width - entry.size(), ' ');
+
+            std::cerr << entry;
+
+            printed_in_line++;
+            if (printed_in_line >= 5) {
+                std::cerr << std::endl;
+                printed_in_line = 0;
+            }
+        }
+
+        // If the last line wasn't terminated (fewer than 5 items), end it now
+        if (printed_in_line != 0) std::cerr << std::endl;
+    }
+
+    if (!anyPrinted) {
+        std::cerr << "  <no valid data>" << std::endl;
+    }
+    std::cerr << "data_out=0x" << std::hex << std::setw(4) << std::setfill('0') << static_cast<uint16_t>(data_out.read()) 
+              << " count=" << std::dec << count.read() << std::endl;
+    std::cerr << "\033[0m";
 }

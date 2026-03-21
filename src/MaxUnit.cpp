@@ -1,5 +1,7 @@
 #include "MaxUnit.h"
-#include "utils.h"
+#include "utils.hpp"
+#include <iomanip>
+#include <cstdint>
 
 /**
  * @brief Stage 1 Combinational Logic - Parallel FP16 Comparisons
@@ -39,3 +41,18 @@ void MaxUnit::stage1_register_update() {
 void MaxUnit::stage2_comb_logic() {
     Max_Out.write(fp16_max(R1_reg.read(), R2_reg.read()));
 }
+/*
+void MaxUnit::Print_Stage_Regs() {
+
+        const char* CYAN = "\033[36m";
+        const char* RESET  = "\033[0m";
+
+        std::cerr << CYAN;
+        std::cerr << "[MaxUnit Pipeline] @" << sc_time_stamp() << "\n";
+        std::cerr << " R1_reg: 0x" << std::hex << std::uppercase << std::setw(4) << std::setfill('0') 
+                  << static_cast<uint16_t>(R1_reg.read()) << "\n";
+        std::cerr << " R2_reg: 0x" << std::setw(4) << static_cast<uint16_t>(R2_reg.read()) << "\n";
+        std::cerr << " Max_Out: 0x" << std::setw(4) << static_cast<uint16_t>(Max_Out.read()) << "\n";
+        std::cerr << RESET << std::flush;
+
+}*/

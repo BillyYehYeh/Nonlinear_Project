@@ -1,0 +1,58 @@
+🛠️ SOLE 模組技術規格書 (Technical Specification)
+
+1. 模組概述 (Module Overview)SOLE 是一個硬體加速模組，專門處理神經網路中的非線性運算（Softmax 與 Layer Normalization）。
+它透過一個中心化的 MMIO RegFile 接收外部指令，並透過 AXI4-Lite 介面與外部記憶體（Memory）進行高速資料交換。
+
+2. 外部接口定義 (External Port Map)根據架構圖，
+SOLE 共有 6 組主要對外接口：
+訊號名稱   位元寬度   方向     功能描述
+clk        1-bit    Input    全局時脈訊號。
+Reset      1-bit    Input    同步重置訊號。
+Addr      32-bits   Input    MMIO 位址輸入。(內部會經由 Mask (LSB 8-bits) 處理)。
+Wdata     32-bits   Input    MMIO 寫入資料總線。
+R(0)/W(1)  1-bit    Input     讀寫控制：1 為寫入 (Write)，0 為讀取 (Read)。
+Rdata     32-bits   Output   MMIO 讀取資料總線。 
+
+3. MMIO 暫存器映射 (Register Map)所有的暫存器操作均透過 Addr 的低 8 位元進行定址：
+偏移位址 (Hex)      暫存器名稱          讀寫權限            詳細位元定義
+0x00                Control             Write           Bit [31]: Mode (0: Softmax, 1: Norm)Bit [0]: Start (1: 啟動運算)
+0x04                Status              Read            Done Bit: 運算與回寫完成標誌（具體位元需參照 SOLE_MMIO.hpp）
+0x08                Src Addr Low        Write           來源記憶體位址的低 32 位元（測試需求設為 100）。
+0x0C                Src Addr High       Write           來源記憶體位址的高 32 位元。(用不到須填零)
+0x10                Dst Addr Low        Write           目的記憶體位址的低 32 位元（測試需求設為 500）。
+0x14                Dst Addr High       Write           目的記憶體位址的高 32 位元。(用不到須填零)
+0x18                Length Low          Write           運算資料長度（100 筆 FP16）。(填100)
+0x1C                Length High         Write           運算資料長度擴充。(用不到須填零)
+
+4. 運作流程與驗證邏輯 (SOLE_test.cpp 核心邏輯)  
+第一階段：環境初始化與資料灌錄Memory    
+    實例化：在 Testbench 中宣告 uint64_t mem[1024]。
+    資料準備：將 100 筆 FP16(數值須為0-1之間的整數或小數) 資料轉換為 uint16_t，每 4 筆打包成一個 64-bit Word 存入 mem[100] 開始的空間。
+    Port 初始狀態：將 Reset 拉高再拉低，維持 clk 震盪。 
+
+第二階段：MMIO 配置 (Write 模式)    
+透過將 R(0)/W(1) 拉至 High (1) 並給予 Addr 與 Wdata：   
+    寫入 0x08：設定資料來源起始位址。
+    寫入 0x10：設定結果回寫位址（值為 500）。
+    寫入 0x18：設定長度為 100。
+    寫入 0x00：給予 0x00000001 (Softmax mode + Start)。
+    (剩下0x0C, 0x14, 0x1C也須寫入零)
+    
+第三階段：狀態監控與 AXI 模擬 (Read 模式)
+介面實作：連接至 SOLE 的 AXI4-Lite Master 介面
+    AXI4-Lite 握手：(此部分用單獨Function包裝)   
+    Testbench 必須模擬 AXI Slave，當 SOLE 發出讀取請求時，根據協議回傳 mem 中的 FP16 資料，這個slave也要能處理資料的寫入。 
+    協議注意：必須詳細閱讀 "SOLE.h" 以及 "SOLE.cpp" 中關於 AXI4-Lite 的實作，特別是那兩條被刪除的線路。
+狀態輪詢：將 R(0)/W(1) 拉至 Low (0)，持續讀取 0x04 (Status) 並 print Rdata 的數值。
+
+第四階段：結果輸出Done 偵測：當 Rdata 中的 Done Bit 變為 1。
+    資料讀取：從 mem 位址 500 開始讀取 25 個 Entry。
+        Testbench 從 Memory 的位址 500 讀回 25 個 64-bit Entry。
+        每個 Entry 拆解為 4 個 FP16 數值。
+    格式轉換：將 uint16_t (FP16 raw) 轉為 float 並列印輸出。
+    
+5. 實作注意事項
+    Mask 邏輯：Testbench 模擬 Addr 時，請確保輸入的是完整 32-bit 位址，驗證 SOLE 內部是否正確執行 8-bit LSB 的屏蔽。
+    實作時請先詳細閱讀檔案("SOLE.cpp","SOLE.h","Softmax.cpp", "Softmax.h", "SOLE_MMIO.hpp", "Status.hpp")，以檔案內容為準
+
+

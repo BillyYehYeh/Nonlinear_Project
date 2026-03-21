@@ -4,6 +4,7 @@
 #include <systemc.h>
 #include <iostream>
 #include <sstream>
+#include <iomanip>
 #include "Log2Exp.h"
 #include "Divider.h"
 
@@ -74,6 +75,11 @@ struct Stage3_Data {
     bool data_valid;       ///< Validity flag: inherited from Stage2
 };
 
+struct Stage4_Data {
+    sc_uint64 Output; 
+    bool data_valid;       ///< Validity flag: inherited from Stage3
+};
+
 } // namespace process3_pipeline
 
 // ===== Operator overloads for SystemC compatibility =====
@@ -121,6 +127,18 @@ namespace sc_core {
             if (i < 3) os << ",";
         }
         os << std::dec << ")]";
+        return os;
+    }
+    
+    // operator== for Stage4_Data
+    inline bool operator==(const process3_pipeline::Stage4_Data& lhs, const process3_pipeline::Stage4_Data& rhs) {
+        return (lhs.data_valid == rhs.data_valid) && (lhs.Output.to_uint64() == rhs.Output.to_uint64());
+    }
+
+    // operator<< for Stage4_Data
+    inline std::ostream& operator<<(std::ostream& os, const process3_pipeline::Stage4_Data& data) {
+        os << "Stage4_Data[valid=" << data.data_valid << ", output=0x" << std::hex << std::setfill('0') << std::setw(16)
+           << data.Output.to_uint64() << std::dec << "]";
         return os;
     }
 }
@@ -192,8 +210,9 @@ SC_MODULE(PROCESS_3_Module) {
     
     // ===== Output Ports =====
     sc_out<sc_uint64>        Output_Vector;         ///< 64-bit packed output (4 x 16-bit FP16 results)
-    sc_out<bool>             stage3_valid;         ///< Stage 3 data valid flag (for AXI write control)
-
+    sc_out<bool>             stage1_valid;         ///< Stage 1 data valid flag (for AXI write control)
+    sc_out<bool>             stage3_valid;         ///< Stage 3 data valid flag (for Output FIFO Read enable control)
+    
     // ===== Internal Signals & Modules =====
     
     /** 4 instances of Divider module for parallel division computations */
@@ -230,6 +249,10 @@ SC_MODULE(PROCESS_3_Module) {
     sc_signal<process3_pipeline::Stage3_Data>   Stage3_Next;          ///< Stage 3 combinational output
     sc_signal<process3_pipeline::Stage3_Data>   Stage3_Reg;           ///< Stage 3 registered output
     
+    // ===== Pipeline Stage 4 Signals =====
+    // (Stores packed output from Divider modules)
+    sc_signal<process3_pipeline::Stage4_Data>   Stage4_Next;          ///< Stage 4 combinational output
+    sc_signal<process3_pipeline::Stage4_Data>   Stage4_Reg;           ///< Stage 4 registered output
     // ===== Process Methods =====
     
     /**
@@ -278,7 +301,7 @@ SC_MODULE(PROCESS_3_Module) {
      * - Stage1_Reg ← Stage1_Next
      * - Stage2_Reg ← Stage2_Next
      * - Stage3_Reg ← Stage3_Next
-     * 
+     * - Stage4_Reg ← Stage4_Next
      * On reset (rst=1), clears all stages to default (0) values.
      * This creates the pipelined data flow through 5 stages.
      * Triggered by: clk.pos() (rising clock edge)
@@ -299,6 +322,8 @@ SC_MODULE(PROCESS_3_Module) {
      * Triggered by: Divider_Output[0..3] changes
      * Latency: 0 ns (combinational)
      */
+    void Stage4_Comb();
+
     void Output_Comb();
     
     /**
@@ -316,6 +341,14 @@ SC_MODULE(PROCESS_3_Module) {
      * for connection to Divider module input ports.
      */
     void Extract_Stage3_Data();
+
+    /**
+     * @brief Print Pipeline Stage Registers (Debug)
+     * 
+     * On each clock cycle, prints the current values of all pipeline stage registers
+     * to the console for debugging and verification purposes.
+     */
+    void Print_Stage_Regs();
     
     // ===== Constructor =====
     SC_HAS_PROCESS(PROCESS_3_Module);
@@ -338,7 +371,7 @@ SC_MODULE(PROCESS_3_Module) {
         
         // Register process methods
         SC_METHOD(Stage1_Comb);
-        sensitive << Local_Max << Global_Max;
+        sensitive << Local_Max << Global_Max << data_valid;
 
         SC_METHOD(Stage2_Comb);
         sensitive << log2exp_out << Stage1_Reg;
@@ -349,14 +382,23 @@ SC_MODULE(PROCESS_3_Module) {
         SC_METHOD(Pipeline_Update);
         sensitive << clk.pos();
         
-        SC_METHOD(Output_Comb);
+        SC_METHOD(Stage4_Comb);
+        for (int i = 0; i < 4; i++) {
+            sensitive << Divider_Output[i];
+        }
         sensitive << Stage3_Reg;
+
+        SC_METHOD(Output_Comb);
+        sensitive << Stage4_Reg;
         
         SC_METHOD(Extract_Stage1_Data);
         sensitive << Stage1_Reg;
         
         SC_METHOD(Extract_Stage3_Data);
         sensitive << Stage3_Reg;
+
+        SC_METHOD(Print_Stage_Regs);
+        sensitive << clk.pos();
     }
 };
 

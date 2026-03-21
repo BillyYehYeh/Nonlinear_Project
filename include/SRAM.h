@@ -35,6 +35,12 @@ public:
     
     // Destructor
     ~SRAM() {}
+
+    // Debug accessor: peek at memory contents (safe read)
+    sc_dt::sc_uint<DATA_BITS> debug_peek(int idx) const {
+        if (idx >= 0 && idx < BYTE_SIZE) return mem[idx];
+        return 0;
+    }
     
 private:
     // Memory storage

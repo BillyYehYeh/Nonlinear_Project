@@ -42,6 +42,7 @@ SC_MODULE(MaxUnit) {
     void stage1_comb_logic();         ///< Stage 1: Parallel comparisons
     void stage1_register_update();    ///< Register update on clock edge
     void stage2_comb_logic();         ///< Stage 2: Final comparison
+    //void Print_Stage_Regs();         ///< Debug: Print pipeline registers
 
     /**
      * @brief Constructor - Set up sensitivity lists and method bindings
@@ -49,10 +50,15 @@ SC_MODULE(MaxUnit) {
     SC_CTOR(MaxUnit) {
         SC_METHOD(stage1_comb_logic);
         sensitive << A << B << C << D; 
+
         SC_METHOD(stage1_register_update);
         sensitive << clk.pos();
+
         SC_METHOD(stage2_comb_logic);
         sensitive << R1_reg << R2_reg;
+
+        //SC_METHOD(Print_Stage_Regs);
+        //sensitive << clk.pos();
     }
 };
 

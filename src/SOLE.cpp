@@ -45,14 +45,26 @@ void SOLE::mmio_access_process() {
     // Extract register offset from lower 8 bits of proc_addr
     sc_uint8 reg_offset = proc_addr.read() & ADDR_OFFSET_MASK;
     
+    // DEBUG
+    static int debug_count = 0;
+    if (debug_count++ < 100) {
+        // MMIO access - removed verbose debug output
+    }
+    
     // Handle write operations (proc_we == 1)
     if (proc_we.read() == true) {
         sc_uint32 write_data = proc_wdata.read();
+        
+        // Register write - debug removed
         
         switch (reg_offset) {
             case REG_CONTROL:
                 // Write Control register: START bit [0], MODE bit [31]
                 reg_control.write(write_data);
+                // DEBUG
+                /*std::cerr << "[MMIO_WRITE] REG_CONTROL=0x" << std::hex << write_data << std::dec 
+                          << " (START=" << ((write_data >> CTRL_START_BIT) & 0x1) 
+                          << " MODE=" << ((write_data >> CTRL_MODE_BIT) & 0x1) << ") @" << sc_time_stamp() << std::endl;*/
                 break;
                 
             case REG_STATUS:
@@ -62,7 +74,8 @@ void SOLE::mmio_access_process() {
                 
             case REG_SRC_ADDR_BASE_L:
                 // Write lower 32-bits of source base address
-                reg_src_addr_base_l.write(write_data);
+                reg_src_addr_base_l.write(write_data);                // DEBUG
+                //std::cerr << "[MMIO_WRITE] REG_SRC_ADDR_BASE_L=" << write_data << " @" << sc_time_stamp() << std::endl;     
                 break;
                 
             case REG_SRC_ADDR_BASE_H:
@@ -83,6 +96,8 @@ void SOLE::mmio_access_process() {
             case REG_LENGTH_L:
                 // Write lower 32-bits of length
                 reg_length_l.write(write_data);
+                // DEBUG
+                //std::cerr << "[MMIO_WRITE] REG_LENGTH_L=" << write_data << " @" << sc_time_stamp() << std::endl;
                 break;
                 
             case REG_LENGTH_H:
@@ -110,12 +125,26 @@ void SOLE::mmio_access_process() {
             read_data = reg_status.read();
             break;
         case REG_CONTROL:
+            read_data = reg_control.read();
+            break;
         case REG_SRC_ADDR_BASE_L:
+            read_data = reg_src_addr_base_l.read();
+            break;
         case REG_SRC_ADDR_BASE_H:
+            read_data = reg_src_addr_base_h.read();
+            break;
         case REG_DST_ADDR_BASE_L:
+            read_data = reg_dst_addr_base_l.read();
+            break;
         case REG_DST_ADDR_BASE_H:
+            read_data = reg_dst_addr_base_h.read();
+            break;
         case REG_LENGTH_L:
+            read_data = reg_length_l.read();
+            break;
         case REG_LENGTH_H:
+            read_data = reg_length_h.read();
+            break;
         case REG_RESERVED:
         default:
             // All other registers are write-only - return 0x0 on read
@@ -125,6 +154,19 @@ void SOLE::mmio_access_process() {
     
     // Write read data to output port
     proc_rdata.write(read_data);
+
+    // --- Status Update Logic ---
+    sc_uint32 status = softmax_status.read();
+    sc_uint32 ctrl = reg_control.read();
+    
+    // Update Status register
+    reg_status.write(status);
+    
+    // Clear Start bit after operation begins (pulse behavior)
+    if (start.read() && (softmax_busy.read() || norm_busy.read())) {
+        sc_uint32 new_ctrl = ctrl & ~(1 << CTRL_START_BIT);
+        reg_control.write(new_ctrl);
+    }
 }
 
 
@@ -168,10 +210,15 @@ void SOLE::mmio_access_process() {
 void SOLE::demux_logic() {
     // Extract Mode and Start signals from Control register
     sc_uint32 ctrl = reg_control.read();
-    mode.write((ctrl >> CTRL_MODE_BIT) & 0x1);
-    start.write((ctrl >> CTRL_START_BIT) & 0x1);
     
-    // Construct 64-bit source address from high and low 32-bits
+    // DEBUG: Print control register value (removed for cleaner output)
+    static int debug_count = 0;
+    
+    bool new_start = (ctrl >> CTRL_START_BIT) & 0x1;
+    start.write(new_start);
+    mode.write((ctrl >> CTRL_MODE_BIT) & 0x1);
+    
+    // Extract Mode and Start signals from Control register
     sc_uint64 src_addr = ((sc_uint64)reg_src_addr_base_h.read() << 32) | 
                          (sc_uint64)reg_src_addr_base_l.read();
     src_addr_base.write(src_addr);
@@ -186,11 +233,13 @@ void SOLE::demux_logic() {
                        (sc_uint64)reg_length_l.read();
     data_length.write(length);
     
+
+    
     // Route signals to appropriate engine
     if (mode.read() == 0) {
         // Route to SoftMax Engine
         softmax_enable.write(start.read());
-        softmax_busy.write(start.read());
+        // NOTE: softmax_busy is driven by Softmax module itself, NOT by SOLE
         
         // Route Softmax AXI Master signals to SOLE Master output ports
         M_AXI_AWADDR.write(softmax_awaddr.read());
@@ -208,8 +257,13 @@ void SOLE::demux_logic() {
         
         M_AXI_ARADDR.write(softmax_araddr.read());
         M_AXI_ARVALID.write(softmax_arvalid.read());
-        softmax_arready.write(M_AXI_ARREADY.read());
         
+        // NOTE: M_AXI_ARVALID is driven directly by axi_read_address_process in Softmax,
+        // not by demux_logic, to avoid delta-cycle timing issues between SC_METHOD processes
+        // So we skip writing M_AXI_ARVALID here and let Softmax drive it directly
+        // M_AXI_ARVALID.write(demux_arvalid);  // SKIP THIS - Softmax drives it directly
+        
+        softmax_arready.write(M_AXI_ARREADY.read());
         softmax_rdata.write(M_AXI_RDATA.read());
         softmax_rresp.write(M_AXI_RRESP.read());
         softmax_rvalid.write(M_AXI_RVALID.read());
@@ -227,70 +281,5 @@ void SOLE::demux_logic() {
         M_AXI_ARADDR.write(0);
         M_AXI_ARVALID.write(false);
         M_AXI_RREADY.write(false);
-    }
-}
-
-/**
- * @brief Status Update & Aggregation Logic
- * 
- * **Functional Overview:**
- * Monitors compute engine status signals and updates the Status register.
- * Implements control flow for operation completion and auto-clear of start bit.
- * 
- * **Status Register Bit Mapping:**
- * Reads status from selected engine (mode-dependent):
- * - Bit[0] (DONE): Set if engine reports completion
- * - Bit[1] (BUSY): Set if engine reports in-progress operation
- * - Bit[2] (ERROR): Set if engine reports error condition
- * 
- * **Engine-Specific Aggregation:**
- * 
- * **SoftMax Mode (Mode=0):**
- *   Status = {softmax_error, softmax_busy, softmax_done}
- * 
- * **Norm Mode (Mode=1):**
- *   Status = {norm_error, norm_busy, norm_done}
- *   (Placeholder - awaiting Norm engine implementation)
- * 
- * **Auto-Clear Behavior:**
- * When START bit is asserted and selected engine becomes BUSY:
- * - Automatically clears CTRL_START_BIT to prevent re-triggering
- * - Creates single-shot pulse behavior for operation trigger
- * 
- * **Sensitivity:**
- * Triggers on changes to engine status signals:
- * - softmax_busy, softmax_done, softmax_error
- * - norm_busy, norm_done, norm_error (future)
- */
-void SOLE::status_update() {
-    sc_uint32 status = 0x0;
-    sc_uint32 ctrl = reg_control.read();
-    
-    // Aggregate status based on Mode selection
-    if (mode.read() == 0) {
-        // SoftMax engine status
-        if (softmax_done.read()) {
-            status |= (1 << STAT_DONE_BIT);
-        }
-        if (softmax_busy.read()) {
-            status |= (1 << STAT_BUSY_BIT);
-        }
-    } else {
-        // Norm engine status (placeholder)
-        if (norm_done.read()) {
-            status |= (1 << STAT_DONE_BIT);
-        }
-        if (norm_busy.read()) {
-            status |= (1 << STAT_BUSY_BIT);
-        }
-    }
-    
-    // Update Status register
-    reg_status.write(status);
-    
-    // Clear Start bit after operation begins (pulse behavior)
-    if (start.read() && (softmax_busy.read() || norm_busy.read())) {
-        sc_uint32 new_ctrl = ctrl & ~(1 << CTRL_START_BIT);
-        reg_control.write(new_ctrl);
     }
 }

@@ -83,6 +83,7 @@ SC_MODULE(SOLE) {
     // Status signals
     sc_signal<bool>             softmax_done;      ///< SoftMax engine done signal
     sc_signal<bool>             softmax_busy;      ///< SoftMax engine busy signal
+    sc_signal<sc_uint32>        softmax_status;    ///< SoftMax status output (connected to reg_status)
     sc_signal<bool>             norm_done;         ///< Norm engine done signal (placeholder)
     sc_signal<bool>             norm_busy;         ///< Norm engine busy signal (placeholder)
     
@@ -152,21 +153,20 @@ SC_MODULE(SOLE) {
      */
     void demux_logic();
     
-    /**
-     * @brief Status Update Logic
-     * Aggregates status from compute engines and updates Status register
-     * - Bit[0] (DONE): Set when engine completes operation
-     * - Bit[1] (BUSY): Set when engine is actively processing
-     * - Bit[2] (ERROR): Set on error condition
-     */
-    void status_update();
-    
     // ===== Constructor =====
     SC_HAS_PROCESS(SOLE);
-    SOLE(sc_core::sc_module_name name) : sc_core::sc_module(name) {
-        
+    SOLE(sc_core::sc_module_name name) : sc_core::sc_module(name), 
+        clk("clk"), rst("rst"), proc_addr("proc_addr"), proc_wdata("proc_wdata"), proc_we("proc_we"), proc_rdata("proc_rdata"),
+        M_AXI_AWADDR("M_AXI_AWADDR"), M_AXI_AWVALID("M_AXI_AWVALID"), M_AXI_AWREADY("M_AXI_AWREADY"),
+        M_AXI_WDATA("M_AXI_WDATA"), M_AXI_WSTRB("M_AXI_WSTRB"), M_AXI_WVALID("M_AXI_WVALID"), M_AXI_WREADY("M_AXI_WREADY"),
+        M_AXI_BRESP("M_AXI_BRESP"), M_AXI_BVALID("M_AXI_BVALID"), M_AXI_BREADY("M_AXI_BREADY"),
+        M_AXI_ARADDR("M_AXI_ARADDR"), M_AXI_ARVALID("M_AXI_ARVALID"), M_AXI_ARREADY("M_AXI_ARREADY"),
+        M_AXI_RDATA("M_AXI_RDATA"), M_AXI_RRESP("M_AXI_RRESP"), M_AXI_RVALID("M_AXI_RVALID"), M_AXI_RREADY("M_AXI_RREADY")
+    {
+ 
+        std::cout << "Constructing SOLE module..." << std::endl;
         // Initialize MMIO registers
-        reg_control.write(0);
+        /*reg_control.write(0);
         reg_status.write(0);
         reg_src_addr_base_l.write(0);
         reg_src_addr_base_h.write(0);
@@ -187,12 +187,13 @@ SC_MODULE(SOLE) {
         
         // Initialize AXI state machines
         axi_read_state.write(0);
-        axi_write_state.write(0);
+        axi_write_state.write(0);*/
         
         // ===== Instantiate Softmax Engine =====
         softmax_unit = new Softmax("softmax_unit");
         softmax_unit->clk(clk);
         softmax_unit->rst(rst);
+        softmax_unit->done(softmax_done);
         
         // Connect control signals from SOLE MMIO
         softmax_unit->start(start);
@@ -201,7 +202,7 @@ SC_MODULE(SOLE) {
         softmax_unit->data_length(data_length);
         
         // Connect status feedback to SOLE regfile
-        softmax_unit->status(reg_status);
+        softmax_unit->status_o(softmax_status);
         
         // Connect Softmax AXI4-Lite Master interface (Write Address Channel)
         softmax_unit->M_AXI_AWADDR(softmax_awaddr);
@@ -234,7 +235,8 @@ SC_MODULE(SOLE) {
         
         // Processor MMIO Access Process (combinational for reads, sequential for writes)
         SC_METHOD(mmio_access_process);
-        sensitive << clk.pos() << proc_we << proc_addr;
+        sensitive << clk.pos() << proc_we << proc_addr << proc_wdata
+                  << softmax_busy << softmax_done << norm_busy << norm_done << softmax_status;
         
         // Demux Logic (combinational)
         SC_METHOD(demux_logic);
@@ -246,9 +248,9 @@ SC_MODULE(SOLE) {
                   << M_AXI_BRESP << M_AXI_BVALID << softmax_bready
                   << softmax_araddr << softmax_arvalid << M_AXI_ARREADY
                   << M_AXI_RDATA << M_AXI_RRESP << M_AXI_RVALID << softmax_rready;
-        
-        // Status Update (combinational)
-        SC_METHOD(status_update);
-        sensitive << softmax_busy << softmax_done << norm_busy << norm_done;
+
+        std::cout << "SOLE Module Construction Complete: " << name << std::endl;
     }
 };
+
+#endif // SOLE_H

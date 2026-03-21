@@ -30,15 +30,18 @@ SC_MODULE(Softmax) {
     // ===== System Ports =====
     sc_in<bool>              clk;                  ///< Clock signal 
     sc_in<bool>              rst;                  ///< Reset signal
+
+    // ===== Done signal =====
+    sc_out<bool>             done;
     
     // ===== Control Signals from SOLE MMIO =====
     sc_in<bool>              start;                ///< Start signal from MMIO Control register
     sc_in<sc_uint64>         src_addr_base;        ///< Source base address (read from memory)
     sc_in<sc_uint64>         dst_addr_base;        ///< Destination base address (write to memory)
-    sc_in<sc_uint32>         data_length;          ///< Number of FP16 elements to process
+    sc_in<sc_uint64>         data_length;          ///< Number of FP16 elements to process
     
     // ===== Status Output to SOLE MMIO =====
-    sc_out<sc_uint32>        status;               ///< Status register (state, error, error_code) 
+    sc_out<sc_uint32>        status_o;               ///< Status register (state, error, error_code) 
     
     // ===== AXI4-Lite Master Ports (Write Address Channel) =====
     sc_out<sc_dt::sc_uint<AXI_ADDR_WIDTH>>  M_AXI_AWADDR;   ///< Write address
@@ -83,7 +86,7 @@ SC_MODULE(Softmax) {
     sc_signal<bool>         process_3_enable;      ///< Enable PROCESS_3 (write to memory + compute)
     
     /** Data counter and address generation */
-    sc_signal<sc_uint32>    data_counter;          ///< Counts processed elements (0 to data_length-1)
+    //sc_signal<sc_uint32>    data_counter;          ///< Counts processed elements (0 to data_length-1)
     sc_signal<sc_uint64>    current_src_addr;      ///< Current source address = src_addr_base + data_counter*8
     sc_signal<sc_uint64>    current_dst_addr;      ///< Current destination address = dst_addr_base + data_counter*8
     
@@ -99,25 +102,21 @@ SC_MODULE(Softmax) {
     sc_signal<sc_uint32>    Sum_Buffer_In;              ///< Update input (write-only, state=1)
     
     /** FIFO Control Signals */
-    sc_signal<bool>         max_fifo_write_en;          ///< Max FIFO write enable (1 when state=1)
     sc_signal<bool>         max_fifo_read_en;           ///< Max FIFO read enable (1 when state=3)
     sc_signal<bool>         max_fifo_clear;             ///< Max FIFO clear (1 when error)
     sc_signal<bool>         max_fifo_full;              ///< Max FIFO full flag
     sc_signal<bool>         max_fifo_empty;             ///< Max FIFO empty flag
+    sc_signal<sc_uint10>    max_fifo_count;            ///< Number of elements currently in Max_FIFO
     
-    sc_signal<bool>         output_fifo_write_en;       ///< Output FIFO write enable (1 when state=1)
     sc_signal<bool>         output_fifo_read_en;        ///< Output FIFO read enable (1 when state=3)
     sc_signal<bool>         output_fifo_clear;          ///< Output FIFO clear (1 when error)
     sc_signal<bool>         output_fifo_full;           ///< Output FIFO full flag
     sc_signal<bool>         output_fifo_empty;          ///< Output FIFO empty flag
+    sc_signal<sc_uint10>    output_fifo_count;         ///< Number of elements currently in Output_FIFO
 
     /** Data signal routing between Modules  */
     sc_signal<sc_uint16>    Global_Max_In_Signal;
-    sc_signal<sc_uint32>    Sum_Buffer_In_Signal;
     sc_signal<sc_uint16>    Power_of_Two_Vector_Signal;
-    sc_signal<sc_uint32>    Sum_Buffer_Update_Signal;
-    sc_signal<sc_uint16>    Local_Max_Output_Signal;
-    sc_signal<sc_uint32>    Pre_Compute_In_Signal;
     sc_signal<sc_uint4>     Leading_One_Pos_Out_Signal;
     sc_signal<sc_uint16>    Mux_Result_Out_Signal;
 
@@ -132,10 +131,13 @@ SC_MODULE(Softmax) {
     sc_signal<bool>         process1_read_data_valid;   ///< Read data valid from AXI (input to PROCESS1)
     sc_signal<bool>         stage1_data_valid;          ///< Stage1 data valid flag (output from PROCESS1)
     sc_signal<bool>         stage5_data_valid;          ///< Stage5 data valid flag (output from PROCESS1)
-    sc_signal<sc_uint32>    fifo_push_count_max;        ///< Number of valid data pushed to Max_FIFO
-    sc_signal<sc_uint32>    fifo_push_count_output;     ///< Number of valid data pushed to Output_FIFO
+
+    sc_signal<sc_uint32>    read_data_received_count_sig; ///< Number of read data responses received from AXI
     
     /** PROCESS3 Data Validity Flag and Write Control */
+    sc_signal<bool>         process3_read_data_valid;   ///< Read data valid from Max FIFO
+    sc_signal<bool>         process3_read_data_valid_delay; ///< Delayed version of process3_read_data_valid
+    sc_signal<bool>         process3_stage1_valid;      ///< Stage1 data valid flag (output from PROCESS3)
     sc_signal<bool>         stage3_data_valid;          ///< Stage3 data valid flag (output from PROCESS3, for AXI write control)
     sc_signal<bool>         write_handshake_success;    ///< TRUE when both AWVALID&&AWREADY and WVALID&&WREADY occur
     sc_signal<bool>         stall_process3_output;      ///< Stall signal for PROCESS_3 (when write handshake fails)
@@ -181,57 +183,29 @@ SC_MODULE(Softmax) {
 
     // ===== Constructor =====
     SC_HAS_PROCESS(Softmax);
-    Softmax(sc_core::sc_module_name name) : sc_core::sc_module(name) {
-
-        // Initialize state machine
-        State.write(STATE_IDLE);
-        data_counter.write(0);
-        error_code_sig.write(ERR_NONE);
-        has_error.write(false);
-        
-        // Initialize status output
-        status.write(0);
-        
-        // Initialize new process1 data validity and FIFO push counters
-        process1_read_data_valid.write(false);
-        stage1_data_valid.write(false);
-        stage5_data_valid.write(false);
-        fifo_push_count_max.write(0);
-        fifo_push_count_output.write(0);
-        
-        // Initialize process3 data validity and write control signals
-        stage3_data_valid.write(false);
-        write_handshake_success.write(false);
-        stall_process3_output.write(false);
-        write_addr_sent_num_sig.write(0);
-        write_data_sent_num_sig.write(0);
-        write_response_received_num_sig.write(0);
-        
-        // ===== Initialize AXI4-Lite Control Signals =====
-        axi_awaddr_sig.write(0);
-        axi_awvalid_sig.write(false);
-        axi_wdata_sig.write(0);
-        axi_wstrb_sig.write(0xFF);      // All 8 bytes enabled (64-bit data)
-        axi_wvalid_sig.write(false);
-        axi_bready_sig.write(false);
-        axi_araddr_sig.write(0);
-        axi_arvalid_sig.write(false);
-        axi_rready_sig.write(false);
-        
-
+    Softmax(sc_core::sc_module_name name) : sc_core::sc_module(name) ,        clk("clk"), rst("rst"), start("start"),
+        src_addr_base("src_addr_base"), dst_addr_base("dst_addr_base"), data_length("data_length"), status_o("status_o"),
+        M_AXI_AWADDR("M_AXI_AWADDR"), M_AXI_AWVALID("M_AXI_AWVALID"), M_AXI_AWREADY("M_AXI_AWREADY"),
+        M_AXI_WDATA("M_AXI_WDATA"), M_AXI_WSTRB("M_AXI_WSTRB"), M_AXI_WVALID("M_AXI_WVALID"), M_AXI_WREADY("M_AXI_WREADY"),
+        M_AXI_BRESP("M_AXI_BRESP"), M_AXI_BVALID("M_AXI_BVALID"), M_AXI_BREADY("M_AXI_BREADY"),
+        M_AXI_ARADDR("M_AXI_ARADDR"), M_AXI_ARVALID("M_AXI_ARVALID"), M_AXI_ARREADY("M_AXI_ARREADY"),
+        M_AXI_RDATA("M_AXI_RDATA"), M_AXI_RRESP("M_AXI_RRESP"), M_AXI_RVALID("M_AXI_RVALID"), M_AXI_RREADY("M_AXI_RREADY")
+    
+    {
+        std::cout << "Constructing Softmax Module: " << name << std::endl;
 
         // ===== Construct PROCESS_1_Module=====
         Process_1_unit = new PROCESS_1_Module("Process_1_unit");
         Process_1_unit->clk(clk);
         Process_1_unit->rst(rst);
-        Process_1_unit->DataIn_64bits(axi_rdata_sig);
+        Process_1_unit->DataIn_64bits(M_AXI_RDATA);
         Process_1_unit->enable(process_1_enable);
         Process_1_unit->data_valid(process1_read_data_valid);  // Connect data validity from AXI
-        Process_1_unit->Global_Max(Global_Max_Buffer_Out);
-        Process_1_unit->Sum_Buffer_In(Sum_Buffer_In_Signal);
+        Process_1_unit->Global_Max(Global_Max_Buffer_Out);    // FIXED: Read from output, not input
+        Process_1_unit->Sum_Buffer_In(Sum_Buffer_Out);
         Process_1_unit->Power_of_Two_Vector(Power_of_Two_Vector_Signal);
-        Process_1_unit->Sum_Buffer_Update(Sum_Buffer_Update_Signal);
-        Process_1_unit->Local_Max_Output(Local_Max_Output_Signal);
+        Process_1_unit->Sum_Buffer_Update(Sum_Buffer_In);
+        Process_1_unit->Local_Max_Output(Global_Max_Buffer_In);  // FIXED: Connect to Global_Max_Buffer_In for accumulation
         Process_1_unit->stage1_valid(stage1_data_valid);  // Output: Stage1 validity flag
         Process_1_unit->stage5_valid(stage5_data_valid);  // Output: Stage5 validity flag
 
@@ -241,7 +215,7 @@ SC_MODULE(Softmax) {
         Process_2_unit->rst(rst);
         Process_2_unit->enable(process_2_enable);  // Add enable signal
         Process_2_unit->stall_output(stall_process2_output_Signal);
-        Process_2_unit->Pre_Compute_In(Pre_Compute_In_Signal);
+        Process_2_unit->Pre_Compute_In(Sum_Buffer_Out);
         Process_2_unit->Leading_One_Pos_Out(Leading_One_Pos_Out_Signal);
         Process_2_unit->Mux_Result_Out(Mux_Result_Out_Signal);
 
@@ -251,38 +225,41 @@ SC_MODULE(Softmax) {
         Process_3_unit->rst(rst);
         Process_3_unit->enable(process_3_enable);
         Process_3_unit->stall(stall_process3_output);
-        Process_3_unit->data_valid(process_3_enable);      // Input: data valid when PROCESS_3 is enabled (new input data arrives)
+        Process_3_unit->data_valid(process3_read_data_valid_delay);      // Input: data valid when PROCESS_3 is enabled (new input data arrives)
         Process_3_unit->Local_Max(Local_Max_Signal);
         Process_3_unit->Global_Max(Global_Max_Buffer_Out);
         Process_3_unit->ks_In(Leading_One_Pos_Out_Signal);
         Process_3_unit->Mux_Result_In(Mux_Result_Out_Signal);
         Process_3_unit->Output_Buffer_In(Output_Buffer_In_Signal);
-        Process_3_unit->Output_Vector(axi_wdata_sig);
+        Process_3_unit->Output_Vector(M_AXI_WDATA);
+        Process_3_unit->stage1_valid(process3_stage1_valid);  
         Process_3_unit->stage3_valid(stage3_data_valid);   // Output: stage3 valid flag for AXI write control
 
         // ===== Construct Max_FIFO=====
         Max_FIFO_unit = new Max_FIFO("Max_FIFO_unit");
         Max_FIFO_unit->clk(clk);
         Max_FIFO_unit->rst(rst);
-        Max_FIFO_unit->data_in(Local_Max_Output_Signal);
-        Max_FIFO_unit->write_en(max_fifo_write_en);
+        Max_FIFO_unit->data_in(Global_Max_Buffer_In);  // FIXED: Connect to Max_FIFO for accumulation
+        Max_FIFO_unit->write_en(stage1_data_valid);  // Write to FIFO when stage1 data is valid (new max value available)
         Max_FIFO_unit->read_en(max_fifo_read_en);
         Max_FIFO_unit->clear(max_fifo_clear);
         Max_FIFO_unit->data_out(Local_Max_Signal);
         Max_FIFO_unit->full(max_fifo_full);
         Max_FIFO_unit->empty(max_fifo_empty);
+        Max_FIFO_unit->count(max_fifo_count);
 
         // ===== Construct Output_FIFO=====
         Output_FIFO_unit = new Output_FIFO("Output_FIFO_unit");
         Output_FIFO_unit->clk(clk);
         Output_FIFO_unit->rst(rst);
         Output_FIFO_unit->data_in(Power_of_Two_Vector_Signal);
-        Output_FIFO_unit->write_en(output_fifo_write_en);
+        Output_FIFO_unit->write_en(stage5_data_valid);
         Output_FIFO_unit->read_en(output_fifo_read_en);
         Output_FIFO_unit->clear(output_fifo_clear);
         Output_FIFO_unit->data_out(Output_Buffer_In_Signal);
         Output_FIFO_unit->full(output_fifo_full);
         Output_FIFO_unit->empty(output_fifo_empty);
+        Output_FIFO_unit->count(output_fifo_count);
 
         // Buffer update 
         SC_METHOD(Buffer_Update);
@@ -295,18 +272,7 @@ SC_MODULE(Softmax) {
         // ===== AXI Write Address & Data Request Process (clocked) =====
         SC_METHOD(axi_write_request_process);
         sensitive << clk.pos();
-        
-        // ===== AXI Response Handling Process (combinational) =====
-        SC_METHOD(axi_response_process);
-        sensitive << M_AXI_RVALID << M_AXI_BVALID << M_AXI_ARREADY << M_AXI_AWREADY;
-        
-        // ===== AXI Port Connection Process (combinational) =====
-        SC_METHOD(axi_port_connection_process);
-        sensitive << axi_awaddr_sig << axi_awvalid_sig << axi_wdata_sig << axi_wstrb_sig 
-                  << axi_wvalid_sig << axi_bready_sig << axi_araddr_sig << axi_arvalid_sig 
-                  << axi_rready_sig << M_AXI_RDATA << M_AXI_RRESP << M_AXI_RVALID 
-                  << M_AXI_BRESP << M_AXI_BVALID << M_AXI_ARREADY << M_AXI_AWREADY << M_AXI_WREADY;
-        
+            
         // ===== Status Update Process (combinational) =====
         SC_METHOD(status_update_process);
         sensitive << State << error_code_sig << has_error;
@@ -315,20 +281,33 @@ SC_MODULE(Softmax) {
         SC_METHOD(manage_process2_stall);
         sensitive << State;
         
+        // ===== manage_fifo_control (thread - clocked) =====
+        SC_METHOD(manage_fifo_control);
+        sensitive << State << stage1_data_valid << stage5_data_valid
+                  << stall_process3_output << process3_stage1_valid << has_error;
+
         // ===== State machine process (thread - clocked) =====
-        SC_THREAD(state_machine_process);
+        SC_METHOD(execute_state_transition);
         sensitive << clk.pos();
-    
+
+        // ===== Connect process1 data valid(combinational) =====
+        SC_METHOD(validity_signal_update);
+        sensitive << M_AXI_RVALID << M_AXI_RREADY 
+                << process_3_enable << max_fifo_empty << max_fifo_read_en;  // Update process1_read_data_valid based on AXI read handshake and PROCESS_3 enable
+
+        SC_METHOD(process3_read_data_valid_delay1);
+        sensitive << clk.pos();  // Delay the process3_read_data_valid signal by one cycle
+
+        //SC_METHOD(axi_write_valid_signals_comb);
+        //sensitive << State << write_addr_sent_num_sig << stage3_data_valid;
+        
+        
+        //SC_METHOD(print_Global_Max_Buffer_In);
+        //sensitive << clk.pos();
     }
     
+    //void print_Global_Max_Buffer_In();
     // ===== Methods =====
-    
-    /**
-     * @brief State Machine Process (Master Control)
-     * Coordinates state transitions and address generation
-     * Calls manage_fifo_control() and execute_state_transition() for separation of concerns
-     */
-    void state_machine_process();
     
     /**
      * @brief FIFO Control Logic Manager
@@ -399,22 +378,14 @@ SC_MODULE(Softmax) {
     /**
      * @brief AXI Write Request Process
      * Generates AXI write address and data requests during PROCESS3 state
-     * Connects current_dst_addr to M_AXI_AWADDR and axi_wdata_sig to M_AXI_WDATA
      */
     void axi_write_request_process();
+
+    void validity_signal_update();
+
+    void process3_read_data_valid_delay1();
     
-    /**
-     * @brief AXI Response Handling Process
-     * Monitors AXI response signals and updates ready signals
-     */
-    void axi_response_process();
-    
-    /**
-     * @brief AXI Port Connection Process (Combinational)
-     * Continuously connects internal AXI signals to the actual M_AXI output ports
-     * and reads from M_AXI input ports to internal signals
-     */
-    void axi_port_connection_process();
+    //void axi_write_valid_signals_comb();
 };
 
 #endif // Softmax_H

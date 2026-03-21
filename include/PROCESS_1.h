@@ -235,7 +235,6 @@ SC_MODULE(PROCESS_1_Module) {
 
     
     // ===== Methods =====
-    void unpack_input();                   ///< Combinational: Unpack 64-bit input to 4 fp16
     void Stage1_Comb();                    ///< Combinational: Generate Stage1_Next
     void Stage2_Comb();                    ///< Combinational: Generate Stage2_Next (differences)
     void Stage3_Comb();                    ///< Combinational: Route to Log2Exp, Generate Stage3_Next
@@ -243,6 +242,7 @@ SC_MODULE(PROCESS_1_Module) {
     void Stage5_Comb();                    ///< Combinational: Generate Stage5_Next
     void Pipeline_Update();                ///< Sequential: Update all pipeline registers on clk.pos()
     void Output_Comb();                    ///< Combinational: Generate final outputs
+    void Print_Stage_Regs();               ///< Sequential: Print all stage registers on clk.pos()
     
     // ===== Constructor =====
     SC_HAS_PROCESS(PROCESS_1_Module);
@@ -273,14 +273,8 @@ SC_MODULE(PROCESS_1_Module) {
             log2exp_units[i]->result_out(log2exp_out[i]);
         }
         
-        // Register process methods
-        SC_METHOD(unpack_input);
-        sensitive << DataIn_64bits;
-        
         SC_METHOD(Stage1_Comb);
-        for (int i = 0; i < 4; i++) {
-            sensitive << DataIn_unpacked[i];
-        }
+        sensitive << DataIn_64bits << data_valid;
         
         SC_METHOD(Stage2_Comb);
         sensitive << Stage1_Reg << Max_Out_comb;
@@ -302,6 +296,9 @@ SC_MODULE(PROCESS_1_Module) {
         
         SC_METHOD(Output_Comb);
         sensitive << Stage5_Reg << Reduction_Output << Sum_Buffer_In;
+        
+        SC_METHOD(Print_Stage_Regs);
+        sensitive << clk.pos();
     }
 };
 

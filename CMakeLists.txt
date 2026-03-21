@@ -188,6 +188,17 @@ add_executable(PROCESS_2_test ${PROCESS_2_TEST_SOURCES})
 target_link_directories(PROCESS_2_test PRIVATE ${SystemC_LIBRARY_DIRS})
 target_link_libraries(PROCESS_2_test ${SystemC_LIBRARIES})
 
+# Source files for SOLE test executable
+set(SOLE_TEST_SOURCES
+    src/SOLE.cpp
+    test/SOLE_test.cpp
+)
+
+# Create SOLE test executable (depends on Softmax_lib for embedded Softmax module)
+add_executable(SOLE_test ${SOLE_TEST_SOURCES})
+target_link_directories(SOLE_test PRIVATE ${SystemC_LIBRARY_DIRS})
+target_link_libraries(SOLE_test Softmax_lib ${SystemC_LIBRARIES})
+
 # Optional: Add a custom target to run tests
 enable_testing()
 add_test(NAME MaxUnit COMMAND MaxUnit_test)
@@ -201,3 +212,4 @@ add_test(NAME Output_Buffer COMMAND Output_Buffer_test)
 add_test(NAME Max_FIFO COMMAND Max_FIFO_test)
 add_test(NAME Output_FIFO COMMAND Output_FIFO_test)
 add_test(NAME PROCESS_2 COMMAND PROCESS_2_test)
+add_test(NAME SOLE COMMAND SOLE_test)

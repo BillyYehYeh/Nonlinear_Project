@@ -90,6 +90,8 @@ SC_MODULE(PROCESS_2_Module) {
     
     /** @brief Sequential stall logic - controls register updates on clock */
     void Output_Stall();
+
+    //void Print_Stage_Regs();  ///< Debug: Print register values on clock edge
     
     // ===== Constructor =====
     SC_HAS_PROCESS(PROCESS_2_Module);
@@ -109,6 +111,9 @@ SC_MODULE(PROCESS_2_Module) {
         
         SC_METHOD(Output_Stall);
         sensitive << stall_output << rst << Mux_Result_Out_Signal << Leading_One_Pos_Out_Signal;
+
+        //SC_METHOD(Print_Stage_Regs);
+        //sensitive << clk.pos();
     }
 };
 
