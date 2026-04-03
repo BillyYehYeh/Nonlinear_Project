@@ -18,10 +18,8 @@ sc_uint4 find_leading_one_pos(sc_uint32 input) {
     
     // Extract the integer part (bits 31-16)
     uint32_t integer_part = (val >> 16) & 0xFFFF;
-    std::cerr << "++++++++++++++++++++++++++++++++++\n" << std::endl;
     // If integer part is 0, return 0
     if (integer_part == 0) {
-        std::cerr << "Warning: Integer part is zero, returning leading one position as 0." << std::endl;
         return sc_uint4(0);
     }
     
@@ -29,11 +27,9 @@ sc_uint4 find_leading_one_pos(sc_uint32 input) {
     // Scan from bit 15 down to bit 0 of the integer part
     for (int i = 15; i >= 0; i--) {
         if ((integer_part >> i) & 1) {
-            std::cerr << "Found leading one at position: " << i << std::endl;
             return sc_uint4(i);
         }
     }
-    std::cerr << "Warning: No leading one found, returning position as 0." << std::endl;
     return sc_uint4(0);
 }
 
@@ -55,10 +51,8 @@ void Divider_PreCompute_Module::compute_threshold() {
     sc_uint4 leading_pos = find_leading_one_pos(input_val);
     Leading_One_Pos.write(leading_pos);
     
-    std::cerr << "*********************************\n" << std::endl;
     // Step 2: Extract the bit to determine Is_Over_Half
     sc_uint1 is_over_half;
-    
     
     // Get the bit at position (16 + leading_pos - 1) = (15 + leading_pos)
     // This is one position below the leading one in the integer part

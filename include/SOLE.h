@@ -40,6 +40,7 @@ SC_MODULE(SOLE) {
     sc_in<sc_dt::sc_uint<32>>   proc_wdata;     ///< Processor write data
     sc_in<bool>                 proc_we;        ///< Processor write enable (1=write, 0=read)
     sc_out<sc_dt::sc_uint<32>>  proc_rdata;     ///< Processor read data
+    sc_out<bool>                interrupt;      ///< Interrupt to CPU when DONE or ERROR bit is set
     
     // ===== AXI4-Lite Master Ports (Write Address Channel) ======
     sc_out<sc_dt::sc_uint<AXI_ADDR_WIDTH>>  M_AXI_AWADDR;   ///< Master write address
@@ -152,11 +153,24 @@ SC_MODULE(SOLE) {
      * Multiplexes AXI4-Lite Master signals from compute engines to MMIO outputs
      */
     void demux_logic();
+
+    /**
+     * @brief Interrupt Output Update
+     * interrupt = 1 when REG_STATUS has DONE bit or ERROR bit asserted
+     */
+    void interrupt_update_process();
+
+    /**
+     * @brief Debug Method to Print Status Register
+     */
+    //void print_reg_status();
+
     
     // ===== Constructor =====
     SC_HAS_PROCESS(SOLE);
     SOLE(sc_core::sc_module_name name) : sc_core::sc_module(name), 
         clk("clk"), rst("rst"), proc_addr("proc_addr"), proc_wdata("proc_wdata"), proc_we("proc_we"), proc_rdata("proc_rdata"),
+        interrupt("interrupt"),
         M_AXI_AWADDR("M_AXI_AWADDR"), M_AXI_AWVALID("M_AXI_AWVALID"), M_AXI_AWREADY("M_AXI_AWREADY"),
         M_AXI_WDATA("M_AXI_WDATA"), M_AXI_WSTRB("M_AXI_WSTRB"), M_AXI_WVALID("M_AXI_WVALID"), M_AXI_WREADY("M_AXI_WREADY"),
         M_AXI_BRESP("M_AXI_BRESP"), M_AXI_BVALID("M_AXI_BVALID"), M_AXI_BREADY("M_AXI_BREADY"),
@@ -165,35 +179,13 @@ SC_MODULE(SOLE) {
     {
  
         std::cout << "Constructing SOLE module..." << std::endl;
-        // Initialize MMIO registers
-        /*reg_control.write(0);
-        reg_status.write(0);
-        reg_src_addr_base_l.write(0);
-        reg_src_addr_base_h.write(0);
-        reg_dst_addr_base_l.write(0);
-        reg_dst_addr_base_h.write(0);
-        reg_length_l.write(0);
-        reg_length_h.write(0);
-        
-        // Initialize status signals
-        softmax_done.write(false);
-        softmax_busy.write(false);
-        norm_done.write(false);
-        norm_busy.write(false);
-        
-        // Initialize demux control signals
-        mode.write(false);
-        start.write(false);
-        
-        // Initialize AXI state machines
-        axi_read_state.write(0);
-        axi_write_state.write(0);*/
         
         // ===== Instantiate Softmax Engine =====
         softmax_unit = new Softmax("softmax_unit");
         softmax_unit->clk(clk);
         softmax_unit->rst(rst);
-        softmax_unit->done(softmax_done);
+        // Note: done signal is now internal to Softmax and accessible via status_o register (bit 0)
+        // No direct done port connection needed
         
         // Connect control signals from SOLE MMIO
         softmax_unit->start(start);
@@ -248,6 +240,12 @@ SC_MODULE(SOLE) {
                   << M_AXI_BRESP << M_AXI_BVALID << softmax_bready
                   << softmax_araddr << softmax_arvalid << M_AXI_ARREADY
                   << M_AXI_RDATA << M_AXI_RRESP << M_AXI_RVALID << softmax_rready;
+
+        SC_METHOD(interrupt_update_process);
+        sensitive << rst << reg_status;
+
+        //SC_METHOD(print_reg_status);
+        //sensitive << reg_status;
 
         std::cout << "SOLE Module Construction Complete: " << name << std::endl;
     }

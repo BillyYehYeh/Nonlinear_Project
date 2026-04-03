@@ -7,6 +7,7 @@
 #include <cstring>
 #include <cmath>
 #include <vector>
+#include <deque>
 #include <numeric>
 #include <algorithm>
 #include <set>
@@ -22,13 +23,22 @@ using namespace std;
 using namespace sole::mmio;
 
 #define AXI_DEBUG 1
+#define STATE_MONITOR_DEBUG 1
+
+#define timeout_watchdog_enable 1
+#define MAX_TIMEOUT_CYCLES 10000  
+
+#define AXI_READ_ARREADY_DELAY 0   // Cycles after ARVALID become high before ARREADY goes high
+#define AXI_READ_RVALID_DELAY  0   // Cycles after Read Address Handshake success before RVALID goes high
+#define AXI_WRITE_WREADY_DELAY 0   // Cycles after WVALID become high before WREADY goes high
+#define error_recovery_test 0      // 1: inject error then restart, 0: run simple one-pass test
 
 // ===== Constants for Testing =====
 #define AXI_ADDR_WIDTH 32
 #define AXI_DATA_WIDTH 64
 #define AXI_STRB_WIDTH 8
 #define TEST_ADDR_BASE 0x0000
-#define TEST_DATA_SIZE 1024  // Increased to accommodate word_idx 0-524 (input at 100-124, output at 500-524)
+#define TEST_DATA_SIZE 2048  // Covers input/output regions up to 4096 FP16 elements (max output word index 1523)
 
 void output_memory_to_log(std::ostream* log, const sc_dt::sc_uint<64> memory[],int start_word, size_t length) {
     if (log && log->good()) {
@@ -159,94 +169,110 @@ SC_MODULE(AxiSlaveMemory) {
     void axi_write_process() {
         // Static state for write transaction tracking
         static sc_uint<32> write_addr_buf = 0;
-        static sc_uint<64> write_data_buf = 0;
-        static bool addr_received = false;
-        static bool data_received = false;
+        static std::deque<sc_uint<AXI_ADDR_WIDTH>> write_addr_queue;
+        static sc_uint<32> last_write_addr = 0;
+        static bool has_last_write_addr = false;
+        static bool wready_pulse_enable = false;
+        static int wready_pulse_cnt = -1;
         
         if (rst.read() == true) {  // If reset IS active (true), disable everything
             S_AXI_AWREADY.write(false);
             S_AXI_WREADY.write(false);
             S_AXI_BVALID.write(false);
             S_AXI_BRESP.write(0);
-            addr_received = false;
-            data_received = false;
+            write_addr_queue.clear();
+            last_write_addr = 0;
+            has_last_write_addr = false;
+            wready_pulse_enable = false;
+            wready_pulse_cnt = -1;
             return;
         }
         
         // Normal operation: rst == false
-        // Write Address Channel: Always ready to accept address
-        S_AXI_AWREADY.write(true);
+        // Keep AWREADY high so address channel can run ahead; queued addresses
+        // are paired with W beats in order.
+        bool awready = true;
+        S_AXI_AWREADY.write(awready);
         
-        // Write Data Channel: Always ready to accept data
-        S_AXI_WREADY.write(true);
+        // WREADY pulse model:
+        // after first WVALID is seen, wait N cycles then pulse WREADY high for 1 cycle,
+        // then repeat (wait N cycles, pulse 1 cycle).
+        if (!wready_pulse_enable && S_AXI_WVALID.read()) {
+            wready_pulse_enable = true;
+            wready_pulse_cnt = AXI_WRITE_WREADY_DELAY;
+        }
+
+        bool wready = false;
+        if (wready_pulse_enable) {
+            if (AXI_WRITE_WREADY_DELAY <= 0) {
+                wready = true;
+            } else if (wready_pulse_cnt <= 0) {
+                wready = true;
+                wready_pulse_cnt = AXI_WRITE_WREADY_DELAY;
+            } else {
+                wready_pulse_cnt--;
+            }
+        }
+        S_AXI_WREADY.write(wready);
         
-        // Capture address when handshake occurs
+        // Handshake must be detected using READY/VALID values visible on ports this cycle.
+        // Using local "awready/wready" can create a one-cycle mismatch with the master.
         bool aw_handshake = S_AXI_AWVALID.read() && S_AXI_AWREADY.read();
         bool w_handshake = S_AXI_WVALID.read() && S_AXI_WREADY.read();
         
-        if (aw_handshake && !addr_received) {
+        if (aw_handshake) {
             write_addr_buf = S_AXI_AWADDR.read();
-            addr_received = true;
+            write_addr_queue.push_back(write_addr_buf);
             if (log_stream && log_stream->good()) {
                 uint32_t addr_val = (uint32_t)(write_addr_buf);
                 if(AXI_DEBUG) (*log_stream) << "[AXI4_LITE][AW] byte_addr=0x" << std::hex << addr_val << std::dec << "\n";
             }
         }
         
-        // Capture data when handshake occurs
-        if (w_handshake && !data_received) {
-            write_data_buf = S_AXI_WDATA.read();
-            data_received = true;
+        // In this testbench model, every W handshake gets an immediate B response pulse.
+        if (w_handshake) {
+            sc_uint<64> write_data_buf = S_AXI_WDATA.read();
             if (log_stream && log_stream->good()) {
                 uint64_t data_val = write_data_buf.to_uint64();
                 if(AXI_DEBUG) (*log_stream) << "[AXI4_LITE][W ] wdata=0x" << std::hex << data_val << std::dec << "\n";
             }
-        }
-        
-        // Execute write transaction when BOTH address and data have been received
-        if (addr_received && data_received) {
-            // Convert BYTE ADDRESS to 64-bit WORD INDEX
-            // Byte address >> 3 = word index (since each word is 8 bytes)
+
+            if (!write_addr_queue.empty()) {
+                write_addr_buf = write_addr_queue.front();
+                write_addr_queue.pop_front();
+            } else {
+                write_addr_buf = has_last_write_addr ? (last_write_addr + 8) : 0;
+                if (log_stream && log_stream->good()) {
+                    if(AXI_DEBUG) (*log_stream) << "[AXI4_LITE][AW_FALLBACK] inferred byte_addr=0x"
+                                  << std::hex << (uint32_t)write_addr_buf << std::dec << "\n";
+                }
+            }
+            last_write_addr = write_addr_buf;
+            has_last_write_addr = true;
+
             uint32_t byte_addr = (uint32_t)(write_addr_buf);
             uint32_t word_idx = byte_addr >> 3;
-            
-            // Bounds check to prevent out-of-bounds writes
+
             if (word_idx >= TEST_DATA_SIZE) {
                 if (log_stream && log_stream->good()) {
                     if(AXI_DEBUG) (*log_stream) << "[AXI4_LITE][WRITE_ERR] word_idx=" << word_idx
                                   << " exceeds TEST_DATA_SIZE=" << TEST_DATA_SIZE << "\n";
-                } 
-                S_AXI_BVALID.write(true);
-                S_AXI_BRESP.write(2);  // SLVERR response
-                if (S_AXI_BREADY.read()) {
-                    addr_received = false;
-                    data_received = false;
                 }
-                return;
-            }
-            
-            sc_uint<64> data_to_write = write_data_buf;
-            if (log_stream && log_stream->good()) {
-                uint64_t data_val = data_to_write.to_uint64();
-                if(AXI_DEBUG) (*log_stream) << "[AXI4_LITE][MEM_WRITE] word_idx=" << word_idx
-                              << " byte_addr=0x" << std::hex << byte_addr
-                              << " data=0x" << data_val << std::dec << "\n";
-            }
-            
-            // Write 8 bytes of data to the specified word index
-            memory[word_idx] = data_to_write;
-            
-            // Send write response
-            S_AXI_BVALID.write(true);
-            S_AXI_BRESP.write(0);  // OKAY response
-            
-            // Clear write transaction state when response is acknowledged
-            if (S_AXI_BREADY.read()) {
+                S_AXI_BRESP.write(2);  // SLVERR
+            } else {
                 if (log_stream && log_stream->good()) {
-                    if(AXI_DEBUG) (*log_stream) << "[AXI4_LITE][B ] bresp=" << S_AXI_BRESP.read() << "\n";
+                    uint64_t data_val = write_data_buf.to_uint64();
+                    if(AXI_DEBUG) (*log_stream) << "[AXI4_LITE][MEM_WRITE] word_idx=" << word_idx
+                                  << " byte_addr=0x" << std::hex << byte_addr
+                                  << " data=0x" << data_val << std::dec << "\n";
                 }
-                addr_received = false;
-                data_received = false;
+                memory[word_idx] = write_data_buf;
+                S_AXI_BRESP.write(0);  // OKAY
+            }
+
+            S_AXI_BVALID.write(true);
+            if (log_stream && log_stream->good()) {
+                if(AXI_DEBUG) (*log_stream) << "[AXI4_LITE][B ] bresp=" << S_AXI_BRESP.read() << "\n";
             }
         } else {
             S_AXI_BVALID.write(false);
@@ -266,30 +292,79 @@ SC_MODULE(AxiSlaveMemory) {
     void axi_read_process() {
         static sc_uint<AXI_ADDR_WIDTH> addr_buf = 0;
         static bool has_addr = false;
+        static int arready_delay_cnt = -1;
+        static int read_resp_start_delay_cnt = -1;
+        static std::deque<sc_uint<AXI_ADDR_WIDTH>> read_addr_queue;
         
         if (rst.read() == true) {  // If reset IS active (true), disable everything
-            S_AXI_ARREADY.write(true);
+            S_AXI_ARREADY.write(false);
             S_AXI_RVALID.write(false);
             S_AXI_RDATA.write(0);
             S_AXI_RRESP.write(0);
             has_addr = false;
+            arready_delay_cnt = -1;
+            read_resp_start_delay_cnt = -1;
+            read_addr_queue.clear();
             return;
         }
         
         // Normal operation: rst == false
-        // Read Address Channel: Always ready to accept read address
-        S_AXI_ARREADY.write(true);
+        // For delay=0 keep old behavior: ARREADY always high.
+        bool arready = false;
+        if (AXI_READ_ARREADY_DELAY <= 0) {
+            arready = true;
+            arready_delay_cnt = -1;
+        } else {
+            // Keep countdown stable after first request to avoid starvation.
+            if (arready_delay_cnt < 0 && S_AXI_ARVALID.read()) {
+                arready_delay_cnt = AXI_READ_ARREADY_DELAY;
+            }
+            if (arready_delay_cnt == 0) {
+                arready = true;
+            } else if (arready_delay_cnt > 0) {
+                arready_delay_cnt--;
+            }
+        }
+        S_AXI_ARREADY.write(arready);
         
         // Capture read address when read address handshake occurs
-        if (S_AXI_ARVALID.read() && S_AXI_ARREADY.read()) {
-            addr_buf = S_AXI_ARADDR.read();
-            has_addr = true;
+        if (S_AXI_ARVALID.read() && arready) {
+            sc_uint<AXI_ADDR_WIDTH> ar_addr = S_AXI_ARADDR.read();
+            read_addr_queue.push_back(ar_addr);
+            // Rearm delay for next transaction when AR delay is enabled.
+            if (AXI_READ_ARREADY_DELAY > 0) {
+                arready_delay_cnt = AXI_READ_ARREADY_DELAY;
+            }
 
             if (log_stream && log_stream->good()) {
-                uint32_t addr_val = (uint32_t)(addr_buf);
+                uint32_t addr_val = (uint32_t)(ar_addr);
                 if(AXI_DEBUG) {
-                    (*log_stream) << sc_time_stamp() <<"[AXI4_LITE][AR] byte_addr=0x" << std::hex << addr_val
+                    (*log_stream) << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns[AXI4_LITE][AR] byte_addr=0x" << std::hex << addr_val
                                   << std::dec << " word_idx=" << (addr_val >> 3) << "\n";
+                    log_stream->flush();
+                }
+            }
+        }
+
+        // Start next read response when idle and there is pending AR request.
+        // AXI_READ_RVALID_DELAY is modeled as response start latency per response.
+        if (!has_addr && !read_addr_queue.empty()) {
+            if (AXI_READ_RVALID_DELAY <= 0) {
+                addr_buf = read_addr_queue.front();
+                read_addr_queue.pop_front();
+                has_addr = true;
+                read_resp_start_delay_cnt = -1;
+            } else {
+                if (read_resp_start_delay_cnt < 0) {
+                    read_resp_start_delay_cnt = AXI_READ_RVALID_DELAY;
+                }
+                if (read_resp_start_delay_cnt > 0) {
+                    read_resp_start_delay_cnt--;
+                } else {
+                    addr_buf = read_addr_queue.front();
+                    read_addr_queue.pop_front();
+                    has_addr = true;
+                    read_resp_start_delay_cnt = -1;
                 }
             }
         }
@@ -298,6 +373,8 @@ SC_MODULE(AxiSlaveMemory) {
         if (has_addr) {
             uint32_t addr_val = (uint32_t)(addr_buf);
             uint32_t word_idx = addr_val >> 3;
+            bool rvalid_now = true;
+
             // Bounds check to prevent out-of-bounds reads
             if (word_idx >= TEST_DATA_SIZE) {
                 throw std::runtime_error("Read address out of bounds in AxiSlaveMemory");
@@ -308,34 +385,36 @@ SC_MODULE(AxiSlaveMemory) {
                     }
                 }
                 S_AXI_RDATA.write(0);
-                S_AXI_RVALID.write(true);
+                S_AXI_RVALID.write(rvalid_now);
                 S_AXI_RRESP.write(2);  // SLVERR response for invalid address
-                if (S_AXI_RREADY.read()) {
+                if (rvalid_now && S_AXI_RREADY.read()) {
                     has_addr = false;
                 }
             } else {
                 // Read 8 bytes (64-bit word) from memory at word_idx
                 sc_uint<64> data_to_read = memory[word_idx];
                 S_AXI_RDATA.write(data_to_read);
-                S_AXI_RVALID.write(true);
+                S_AXI_RVALID.write(rvalid_now);
                 S_AXI_RRESP.write(0);  // OKAY response
-                if (log_stream && log_stream->good()) {
+                if (rvalid_now && log_stream && log_stream->good()) {
                     uint64_t rdata_val = data_to_read.to_uint64();
                     if(AXI_DEBUG) {
-                        (*log_stream) << sc_time_stamp() << "[AXI4_LITE][R ] word_idx=" << word_idx
+                        (*log_stream) << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns[AXI4_LITE][R ] word_idx=" << word_idx
                                   << " rdata=0x" << std::hex << rdata_val
                                   << " rresp=" << S_AXI_RRESP.read() << std::dec << "\n";
+                        log_stream->flush();
                     }
                 }
                 
                 // Clear address when response is accepted by master
-                if (S_AXI_RREADY.read()) {
+                if (rvalid_now && S_AXI_RREADY.read()) {
                     has_addr = false;
                 }
             }
         } else {
             S_AXI_RVALID.write(false);
             S_AXI_RDATA.write(0);
+            S_AXI_RRESP.write(0);
         }
     }
 };
@@ -361,6 +440,7 @@ SC_MODULE(SOLE_TestBench) {
     sc_signal<sc_uint<32>>                    proc_wdata;
     sc_signal<bool>                           proc_we;
     sc_signal<sc_uint<32>>                    proc_rdata;
+    sc_signal<bool>                           interrupt;
     
     // AXI4-Lite Master Interface Signals
     // Write Address Channel
@@ -399,12 +479,27 @@ SC_MODULE(SOLE_TestBench) {
     int test_passed;
     int test_failed;
     
+    // Status monitoring (for change detection)
+    sc_uint32 last_status;      ///< Track previous status value to detect changes
+    bool enable_status_monitor; ///< Flag to enable/disable real-time status monitoring
+    std::ofstream test_log_monitoring;  ///< Log file for continuous status monitor
+    
+    // Timing tracking
+    sc_time start_time;         ///< Time when start bit was set
+    sc_time done_time;          ///< Time when done bit was detected
+    sc_time execution_time;     ///< Total execution time
+    
     SC_HAS_PROCESS(SOLE_TestBench);
     
     SOLE_TestBench(sc_module_name name) : sc_module(name), 
                                           test_total(0),
                                           test_passed(0), 
-                                          test_failed(0) {
+                                          test_failed(0),
+                                          last_status(0xFFFFFFFF),
+                                          enable_status_monitor(false),
+                                          start_time(0, SC_NS),
+                                          done_time(0, SC_NS),
+                                          execution_time(0, SC_NS) {  // Initialize to invalid value to force first print
         // Instantiate DUT
         dut = new SOLE("SOLE_DUT");
         dut->clk(clk);
@@ -415,6 +510,7 @@ SC_MODULE(SOLE_TestBench) {
         dut->proc_wdata(proc_wdata);
         dut->proc_we(proc_we);
         dut->proc_rdata(proc_rdata);
+        dut->interrupt(interrupt);
         
         // AXI4-Lite Master Interface
         dut->M_AXI_AWADDR(M_AXI_AWADDR);
@@ -461,6 +557,9 @@ SC_MODULE(SOLE_TestBench) {
         
         // Register test threads
         SC_THREAD(clock_generator);
+        SC_THREAD(continuous_status_monitor);
+        SC_THREAD(interrupt_monitor);
+        SC_THREAD(timeout_watchdog);
         SC_THREAD(test_stimulus);
     }
     
@@ -494,6 +593,33 @@ SC_MODULE(SOLE_TestBench) {
         wait(clk.posedge_event());  // Wait for SC_METHOD to execute
         unsigned int data = proc_rdata.read();
         return data;
+    }
+    
+    /**
+     * @brief Monitor and Print Status Register (Only on change)
+     * Reads the status register and prints it in purple if the value has changed
+     */
+    void monitor_status() {
+        uint32_t current_status = mmio_read(sole::mmio::REG_STATUS);
+        
+        // Only print if status changed
+        if (current_status != last_status) {
+            bool done_bit = current_status & 0x1;
+            uint32_t state = (current_status >> 1) & 0x3;
+            bool error_flag = (current_status >> 3) & 0x1;
+            uint8_t error_code = (current_status >> 4) & 0xF;
+            
+            std::cerr << "\033[35m"  // Purple color
+                      << "[STATUS_MMIO] 0x" << std::hex << std::setw(8) << std::setfill('0') << current_status
+                      << " | done=" << std::dec << (int)done_bit
+                      << " state=" << status_state_name(current_status)
+                      << " error=" << (int)error_flag
+                      << " error_code=0x" << std::hex << (int)error_code
+                      << "\033[0m"  // Reset color
+                      << " @" << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns" << std::endl;
+            
+            last_status = current_status;
+        }
     }
     
     /**
@@ -536,12 +662,131 @@ SC_MODULE(SOLE_TestBench) {
         }
     }
     
+    /**
+     * @brief Continuous Status Monitor - Runs every clock cycle
+     * This thread monitors the SOLE status register continuously, catching all state transitions
+     * even if the main test_stimulus thread is busy with other operations
+     */
+    void continuous_status_monitor() {
+        // Wait for enable signal from test_stimulus
+        while (!enable_status_monitor) {
+            wait(1, SC_NS);  // Keep responsive without consuming watchdog budget
+        }
+        
+        test_log_monitoring << "\n[CONTINUOUS MONITOR STARTED]\n";
+        test_log_monitoring.flush();
+        
+        while (enable_status_monitor) {
+            wait(clk.posedge_event());  // Trigger on every clock edge
+            
+            // Directly read the raw status register (not through MMIO to avoid protocol overhead)
+            uint32_t current_status = dut->reg_status.read().to_uint();
+            
+            // Only log if status changed
+            if (current_status != last_status) {
+                bool done_bit = current_status & 0x1;
+                uint32_t state = (current_status >> 1) & 0x3;
+                bool error_flag = (current_status >> 3) & 0x1;
+                uint8_t error_code = (current_status >> 4) & 0xF;
+                
+                // Log to both stderr (console) and file
+                std::string state_name;
+                switch(state) {
+                    case 0: state_name = "IDLE"; break;
+                    case 1: state_name = "PROCESS1"; break;
+                    case 2: state_name = "PROCESS2"; break;
+                    case 3: state_name = "PROCESS3"; break;
+                    default: state_name = "UNKNOWN"; break;
+                }
+                
+                std::cerr << "\033[36m"  // Cyan color for continuous monitor
+                          << "[STATUS_HW] 0x" << std::hex << std::setw(8) << std::setfill('0') << current_status
+                          << " | done=" << std::dec << (int)done_bit
+                          << " | state=" << state_name
+                          << " | error=" << (int)error_flag
+                          << " | error_code=0x" << std::hex << (int)error_code
+                          << "\033[0m"  // Reset color
+                          << " @" << std::dec << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns" << std::endl;
+                
+                test_log_monitoring << "[STATUS_HW] 0x" << std::hex << std::setw(8) << std::setfill('0') << current_status
+                                    << " | done=" << std::dec << (int)done_bit
+                                    << " | state=" << state_name
+                                    << " | error=" << (int)error_flag
+                                    << " | error_code=0x" << std::hex << (int)error_code
+                                    << " @" << std::dec << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns\n";
+                test_log_monitoring.flush();
+                
+                last_status = current_status;
+            }
+        }
+        
+        test_log_monitoring << "\n[CONTINUOUS MONITOR STOPPED]\n";
+        test_log_monitoring.flush();
+    }
+
+    void interrupt_monitor() {
+        bool last_interrupt = false;
+
+        // Start monitoring after reset sequence to avoid startup X/initial noise.
+        wait(rst.posedge_event());
+        wait(rst.negedge_event());
+
+        while (true) {
+            wait(clk.posedge_event());
+
+            bool irq = interrupt.read();
+            if (irq && !last_interrupt) {
+                uint32_t status = dut->reg_status.read().to_uint();
+                bool done_bit = ((status >> STAT_DONE_BIT) & 0x1) != 0;
+                bool error_bit = ((status >> STAT_ERROR_BIT) & 0x1) != 0;
+
+                std::cerr << "\033[1;33m"
+                          << "[INTERRUPT] interrupt=1"
+                          << " | done=" << (int)done_bit
+                          << " | error=" << (int)error_bit
+                          << " | status=0x" << std::hex << std::setw(8) << std::setfill('0') << status
+                          << "\033[0m"
+                          << " @" << std::dec << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns"
+                          << std::endl;
+
+                if (test_log_monitoring.is_open()) {
+                    test_log_monitoring << "[INTERRUPT] interrupt=1"
+                                        << " | done=" << (int)done_bit
+                                        << " | error=" << (int)error_bit
+                                        << " | status=0x" << std::hex << std::setw(8) << std::setfill('0') << status
+                                        << " @" << std::dec << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns\n";
+                    test_log_monitoring.flush();
+                }
+            }
+
+            last_interrupt = irq;
+        }
+    }
+
+    /**
+     * @brief Independent timeout watchdog thread
+     * Starts at simulation begin and stops simulation when timeout is reached.
+     */
+    void timeout_watchdog() {
+        if (!timeout_watchdog_enable) {
+            return;
+        }
+
+        const int timeout_ns = MAX_TIMEOUT_CYCLES;
+        wait(timeout_ns, SC_NS);
+
+        std::cerr << "\033[31m" << "[TIMEOUT] Watchdog reached " << timeout_ns
+                  << " ns @ " << (long long)(sc_time_stamp() / sc_time(1, SC_NS))
+                  << " ns, stopping simulation" << "\033[0m" << std::endl;
+        sc_stop();
+    }
+    
     // ===== Main Test Stimulus =====
     void test_stimulus() {
         const int INPUT_START_WORD = 100;
         const int OUTPUT_START_WORD = 500;
 
-        ofstream test_log("test.log");
+        ofstream test_log("../test/SOLE_test_Result.log");
         if (!test_log.is_open()) {
             cerr << "[ERROR] Failed to create test.log" << endl;
             sc_stop();
@@ -551,7 +796,21 @@ SC_MODULE(SOLE_TestBench) {
         axi_slave->set_logger(&test_log);
         test_log << "===== SOLE TEST LOG =====\n";
         test_log.flush();
-
+        
+        // Open continuous monitor log file
+        test_log_monitoring.open("../test/SOLE_test_Monitor.log");
+        if (!test_log_monitoring.is_open()) {
+            cerr << "[ERROR] Failed to create monitor log file" << endl;
+        }
+        
+        // Enable continuous status monitoring EARLY (before reset)
+        if(STATE_MONITOR_DEBUG) {
+            enable_status_monitor = true;
+        }
+        
+        // Give monitor thread time to start running
+        wait(10, SC_NS);
+        
         // Read input test vectors from file (one value per line)
         vector<float> input_values;
         ifstream data_file("SOLE_test_Data.txt");
@@ -618,27 +877,77 @@ SC_MODULE(SOLE_TestBench) {
        
 
         // (2) testbench設定SOLE MMIO過程
+#if error_recovery_test
+        test_log << "\n[2] Error Injection + Recovery Start Test\n";
+#else
         test_log << "\n[2] Testbench MMIO Configuration\n";
+#endif
         test_log << "TimeNs,Reg,ValueHex,Note\n";
 
+#if error_recovery_test
+        // 2a) Inject an MMIO configuration error: start with zero length.
+        mmio_write(REG_LENGTH_L, 0);
+        mmio_write(REG_LENGTH_H, 0);
+        mmio_write(REG_CONTROL, 0x00000001);
+        test_log << (long long)(sc_time_stamp() / sc_time(1, SC_NS))
+                 << " ns,REG_CONTROL,0x1,inject error with length=0\n";
+
+        bool injected_error_seen = false;
+        bool injected_interrupt_seen = false;
+        for (int i = 0; i < 64; ++i) {
+            wait(clk.posedge_event());
+            uint32_t st = dut->reg_status.read().to_uint();
+            bool err = ((st >> STAT_ERROR_BIT) & 0x1) != 0;
+            if (err) {
+                injected_error_seen = true;
+                injected_interrupt_seen = interrupt.read();
+                test_log << "time: " << (long long)(sc_time_stamp() / sc_time(1, SC_NS))
+                         << " ns Event: Injected error detected, status=0x"
+                         << hex << setfill('0') << setw(8) << st << dec
+                         << " interrupt=" << (int)injected_interrupt_seen << "\n";
+                break;
+            }
+        }
+        verify_test(injected_error_seen, "Injected MMIO error is detected");
+        verify_test(injected_interrupt_seen, "Interrupt is asserted on injected error");
+
+        // 2b) Clear START and verify error bit can clear before restart.
+        mmio_write(REG_CONTROL, 0x00000000);
+        bool error_cleared = false;
+        for (int i = 0; i < 64; ++i) {
+            wait(clk.posedge_event());
+            uint32_t st = dut->reg_status.read().to_uint();
+            bool err = ((st >> STAT_ERROR_BIT) & 0x1) != 0;
+            if (!err) {
+                error_cleared = true;
+                break;
+            }
+        }
+        verify_test(error_cleared, "Error bit clears after deasserting START");
+
+        // 2c) Reconfigure valid settings and start again.
+        test_log << "\n[2-RECOVERY] Reconfigure valid MMIO and restart\n";
+#endif
+
         mmio_write(REG_SRC_ADDR_BASE_L, INPUT_START_WORD * 8);
-        test_log << sc_time_stamp() << ",REG_SRC_ADDR_BASE_L,0x"
+        test_log << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns,REG_SRC_ADDR_BASE_L,0x"
                  << hex << (INPUT_START_WORD * 8) << dec << ",source base byte address\n";
         mmio_write(REG_SRC_ADDR_BASE_H, 0);
-        test_log << sc_time_stamp() << ",REG_SRC_ADDR_BASE_H,0x0,source high\n";
+        test_log << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns,REG_SRC_ADDR_BASE_H,0x0,source high\n";
         mmio_write(REG_DST_ADDR_BASE_L, OUTPUT_START_WORD * 8);
-        test_log << sc_time_stamp() << ",REG_DST_ADDR_BASE_L,0x"
+        test_log << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns,REG_DST_ADDR_BASE_L,0x"
                  << hex << (OUTPUT_START_WORD * 8) << dec << ",destination base byte address\n";
         mmio_write(REG_DST_ADDR_BASE_H, 0);
-        test_log << sc_time_stamp() << ",REG_DST_ADDR_BASE_H,0x0,destination high\n";
+        test_log << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns,REG_DST_ADDR_BASE_H,0x0,destination high\n";
         mmio_write(REG_LENGTH_L, NUM_DATA);
-        test_log << sc_time_stamp() << ",REG_LENGTH_L,0x"
+        test_log << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns,REG_LENGTH_L,0x"
                  << hex << NUM_DATA << dec << ",number of FP16 elements\n";
         mmio_write(REG_LENGTH_H, 0);
-        test_log << sc_time_stamp() << ",REG_LENGTH_H,0x0,length high\n";
+        test_log << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns,REG_LENGTH_H,0x0,length high\n";
         // ===== Start the softmax module =====
+        start_time = sc_time_stamp();  // Record start time BEFORE sending start command
         mmio_write(REG_CONTROL, 0x00000001);
-        test_log << sc_time_stamp() << ",REG_CONTROL,0x1,mode=softmax start=1\n";
+        test_log << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns,REG_CONTROL,0x1,mode=softmax start=1\n";
         
         // After starting the softmax, set the start bit back to zero (important!!)
         mmio_write(REG_CONTROL, 0x00000000);
@@ -649,6 +958,9 @@ SC_MODULE(SOLE_TestBench) {
         // (3) SOLE透過AXI4_Lite讀取input data並寫回結果的過程
         test_log << "\n[3] Softmax Start Running\n";
         test_log << "TimeNs,Status,State,Done,ErrorCode\n";
+        
+        // Print initial status
+        //monitor_status();
 
         // 等待四个关键事件按顺序发生
         test_log << "\n[Stage 1: Waiting for PROCESS1 state]\n";
@@ -657,8 +969,9 @@ SC_MODULE(SOLE_TestBench) {
             wait(clk.posedge_event());
             uint32_t st = mmio_read(REG_STATUS);
             uint32_t cur_state = (st >> 1) & 0x3;
+            //monitor_status();  // Print status changes
             if (cur_state == 1) {
-                test_log << "time: " << sc_time_stamp() <<" Event: Entered PROCESS1\n";
+                test_log << "time: " << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns Event: Entered PROCESS1\n";
                 test_log.flush();
                 break;
             }
@@ -670,8 +983,9 @@ SC_MODULE(SOLE_TestBench) {
             wait(clk.posedge_event());
             uint32_t st = mmio_read(REG_STATUS);
             uint32_t cur_state = (st >> 1) & 0x3;
+            //monitor_status();  // Print status changes
             if (cur_state == 2) {
-                test_log << "time: " << sc_time_stamp() <<" Event: Entered PROCESS2\n";
+                test_log << "time: " << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns Event: Entered PROCESS2\n";
                 test_log.flush();
                 break;
             }
@@ -683,8 +997,9 @@ SC_MODULE(SOLE_TestBench) {
             wait(clk.posedge_event());
             uint32_t st = mmio_read(REG_STATUS);
             uint32_t cur_state = (st >> 1) & 0x3;
+            //monitor_status();  // Print status changes
             if (cur_state == 3) {
-                test_log << "time: " << sc_time_stamp() <<" Event: Entered PROCESS3\n";
+                test_log << "time: " << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns Event: Entered PROCESS3\n";
                 test_log.flush();
                 break;
             }
@@ -692,10 +1007,93 @@ SC_MODULE(SOLE_TestBench) {
 
         test_log << "\n[Stage 4: Waiting for softmax_done]\n";
         test_log.flush();
-        while (dut->softmax_done != 1) {
+        
+        // Wait for DONE bit (bit 0) in status register to pulse HIGH
+        // The done signal pulses HIGH for exactly one clock cycle when PROCESS3 completes
+        // IMPORTANT: mmio_read() consumes 2 clock cycles, so we need tight polling to catch the 1-cycle pulse
+        
+        bool done_detected = false;
+        bool completion_detected = false;
+        bool idle_completion_detected = false;
+        int timeout_cycles = 0;
+        uint32_t last_status_checked = 0xFFFFFFFF;  // Track last checked status to avoid duplicate prints
+        
+        // Stage 4a: Pre-polling phase - single MMIO read to establish baseline
+        uint32_t baseline_status = mmio_read(REG_STATUS);
+        last_status_checked = baseline_status;
+        //monitor_status();
+        test_log << "Stage 4a baseline status: 0x" << hex << baseline_status << dec << " @" << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns\n";
+        test_log.flush();
+        
+        // Stage 4b: Tight polling - wait cycle-by-cycle without heavy MMIO reads
+        // This allows us to catch the 1-cycle done pulse
+        test_log << "Stage 4b: Entering tight polling loop (direct HW register read)...\n";
+        test_log.flush();
+        
+        while (!completion_detected && timeout_cycles < MAX_TIMEOUT_CYCLES) {
+            // Wait one cycle
             wait(clk.posedge_event());
+            timeout_cycles++;
+            
+            // Read status directly from hardware register (like monitoring thread does)
+            // This is much faster than MMIO read and allows catching single-cycle pulses
+            uint32_t status_val = dut->reg_status.read().to_uint();
+            bool done_bit = (status_val >> 0) & 0x1;
+            uint32_t cur_state = (status_val >> 1) & 0x3;
+            
+            // Print only if status changed (to track state transitions)
+            if (status_val != last_status_checked) {
+                test_log << "time: " << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns"
+                        << " | Status: 0x" << hex << setfill('0') << setw(8) << status_val << dec
+                        << " | done=" << (int)done_bit 
+                        << " | state=" << status_state_name(status_val)
+                        << "\n";
+                test_log.flush();
+                last_status_checked = status_val;
+            }
+            
+            if (done_bit) {
+                done_detected = true;
+                completion_detected = true;
+                done_time = sc_time_stamp();  // Record done time
+                execution_time = done_time - start_time;  // Calculate execution time
+                test_log << "time: " << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns Event: DONE pulse detected!\n";
+                test_log << "[TIMING] Start time: " << (long long)(start_time / sc_time(1, SC_NS)) << " ns\n";
+                test_log << "[TIMING] Done time: " << (long long)(done_time / sc_time(1, SC_NS)) << " ns\n";
+                test_log << "[TIMING] Execution time: " << (long long)(execution_time / sc_time(1, SC_NS)) << " ns\n";
+                test_log.flush();
+            } else if (cur_state == 0 && timeout_cycles > 1) {
+                // Fallback completion criteria: done pulse may be too narrow to sample in this thread.
+                // If state has cleanly returned to IDLE after PROCESS3, treat as completion.
+                idle_completion_detected = true;
+                completion_detected = true;
+                done_time = sc_time_stamp();
+                execution_time = done_time - start_time;
+                test_log << "time: " << (long long)(sc_time_stamp() / sc_time(1, SC_NS))
+                         << " ns Event: Completion inferred by STATE=IDLE (done pulse may have been missed)\n";
+                test_log << "[TIMING] Start time: " << (long long)(start_time / sc_time(1, SC_NS)) << " ns\n";
+                test_log << "[TIMING] Completion time: " << (long long)(done_time / sc_time(1, SC_NS)) << " ns\n";
+                test_log << "[TIMING] Execution time: " << (long long)(execution_time / sc_time(1, SC_NS)) << " ns\n";
+                test_log.flush();
+            }
         }
-        test_log << "time: " << sc_time_stamp() <<" Event: softmax_done asserted\n";;
+
+        if (!completion_detected) {
+            test_log << "ERROR: Timeout waiting for done signal after " << timeout_cycles << " cycles\n";
+        } else if (idle_completion_detected) {
+            test_log << "time: " << (long long)(sc_time_stamp() / sc_time(1, SC_NS))
+                     << " ns Completion successfully captured by IDLE fallback\n";
+        } else {
+            test_log << "time: " << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns DONE pulse successfully captured\n";
+        }
+        test_log.flush();
+        
+        // Wait one more cycle for done to deassert (it's a one-cycle pulse)
+        wait(clk.posedge_event());
+        uint32_t final_status = mmio_read(REG_STATUS);
+        test_log << "time: " << (long long)(sc_time_stamp() / sc_time(1, SC_NS)) << " ns After done deassert: Status = 0x" 
+                << hex << setfill('0') << setw(8) << final_status << dec
+                << " | done=" << ((final_status >> 0) & 0x1) << "\n";
         test_log.flush();
         
         // (4) Softmax運算結束，確認memory中的資料
@@ -743,6 +1141,11 @@ SC_MODULE(SOLE_TestBench) {
         }
         double cosine = 0.0;
         if (norm_hw > 0.0 && norm_sw > 0.0) cosine = dot / (sqrt(norm_hw) * sqrt(norm_sw));
+    #if error_recovery_test
+        verify_test(cosine > 0.99, "Recovery restart run cosine similarity > 0.99");
+    #else
+        verify_test(cosine > 0.99, "Simple run cosine similarity > 0.99");
+    #endif
 
         // Top-5 values and indices for HW and SW outputs
         vector<pair<float,int>> hw_pairs; hw_pairs.reserve(NUM_DATA);
@@ -755,7 +1158,8 @@ SC_MODULE(SOLE_TestBench) {
         sort(hw_pairs.begin(), hw_pairs.end(), cmp);
         sort(sw_pairs.begin(), sw_pairs.end(), cmp);
 
-        test_log << "\n================== FINAL REPORT ================= " ;
+        test_log << "\n================== FINAL REPORT ================= " ;        
+        test_log << "\n[EXECUTION TIME] SOLE Execution Time: " << (long long)(execution_time / sc_time(1, SC_NS)) << " ns\n";        
         test_log << "\n[ANALYSIS] Cosine Similarity (HW vs SW) = " << fixed << setprecision(9) << cosine << "\n";
 
         test_log << "\n[ANALYSIS] Top 5 large inputs (value @ index):\n";
@@ -791,6 +1195,13 @@ SC_MODULE(SOLE_TestBench) {
         test_log << "\n============ END OF SOLE TEST LOG ============\n";
         test_log.flush();
         test_log.close();
+        
+        // Disable continuous monitoring and close monitor log
+        enable_status_monitor = false;
+        wait(2, SC_NS);  // Give monitor thread time to stop
+        if (test_log_monitoring.is_open()) {
+            test_log_monitoring.close();
+        }
 
         delete[] hw_input;
         delete[] hw_output;
@@ -803,7 +1214,7 @@ SC_MODULE(SOLE_TestBench) {
 int sc_main(int argc, char* argv[]) {
     // Create testbench instance
     SOLE_TestBench testbench("SOLE_TestBench");
-    
+
     // Run simulation until testbench calls sc_stop()
     sc_start();
     

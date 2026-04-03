@@ -242,7 +242,7 @@ SC_MODULE(PROCESS_1_Module) {
     void Stage5_Comb();                    ///< Combinational: Generate Stage5_Next
     void Pipeline_Update();                ///< Sequential: Update all pipeline registers on clk.pos()
     void Output_Comb();                    ///< Combinational: Generate final outputs
-    void Print_Stage_Regs();               ///< Sequential: Print all stage registers on clk.pos()
+    //void Print_Stage_Regs();               ///< Sequential: Print all stage registers on clk.pos()
     
     // ===== Constructor =====
     SC_HAS_PROCESS(PROCESS_1_Module);
@@ -297,8 +297,8 @@ SC_MODULE(PROCESS_1_Module) {
         SC_METHOD(Output_Comb);
         sensitive << Stage5_Reg << Reduction_Output << Sum_Buffer_In;
         
-        SC_METHOD(Print_Stage_Regs);
-        sensitive << clk.pos();
+        //SC_METHOD(Print_Stage_Regs);
+        //sensitive << clk.pos();
     }
 };
 

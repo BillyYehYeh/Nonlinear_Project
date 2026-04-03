@@ -201,7 +201,7 @@ SC_MODULE(PROCESS_3_Module) {
     sc_in<bool>              rst;                  ///< Reset signal (clears all pipeline stages)
     sc_in<bool>              enable;               ///< Enable signal (1=active, 0=stall entire module)
     sc_in<bool>              stall;                ///< Stall signal (1=freeze pipeline, 0=normal operation)
-    sc_in<bool>              data_valid;           ///< Data validity flag (from AXI write handshake)
+    sc_in<bool>              input_data_valid;     ///< Data validity flag (from AXI write handshake)
     sc_in<sc_uint16>         Local_Max;            ///< 16-bit FP16 local maximum value  
     sc_in<sc_uint16>         Global_Max;           ///< 16-bit FP16 global maximum value
     sc_in<sc_uint4>          ks_In;                ///< 4-bit scale factor from Divider_PreCompute
@@ -210,8 +210,8 @@ SC_MODULE(PROCESS_3_Module) {
     
     // ===== Output Ports =====
     sc_out<sc_uint64>        Output_Vector;         ///< 64-bit packed output (4 x 16-bit FP16 results)
-    sc_out<bool>             stage1_valid;         ///< Stage 1 data valid flag (for AXI write control)
-    sc_out<bool>             stage3_valid;         ///< Stage 3 data valid flag (for Output FIFO Read enable control)
+    sc_out<bool>             stage2_valid;         ///< Stage 3 data valid flag (for Output FIFO Read enable control)
+    sc_out<bool>             stage4_valid;         ///< Stage 4 data valid flag (aligned with Output_Vector)
     
     // ===== Internal Signals & Modules =====
     
@@ -371,7 +371,7 @@ SC_MODULE(PROCESS_3_Module) {
         
         // Register process methods
         SC_METHOD(Stage1_Comb);
-        sensitive << Local_Max << Global_Max << data_valid;
+        sensitive << Local_Max << Global_Max << input_data_valid;
 
         SC_METHOD(Stage2_Comb);
         sensitive << log2exp_out << Stage1_Reg;

@@ -36,67 +36,38 @@
  */
 void Softmax::manage_fifo_control() {
     using namespace softmax::status;
-    
-    sc_uint2 current_state = State.read();
-    bool stage1_valid = stage1_data_valid.read();
-    bool stage5_valid = stage5_data_valid.read();
-    
-    // Manage read/write enables based on state and stage validity flags
-    switch (current_state) {
-        case STATE_IDLE:
-            max_fifo_read_en.write(false);
-            output_fifo_read_en.write(false);
-            break;
-            
-        case STATE_PROCESS1: {
-            max_fifo_read_en.write(false);
-            output_fifo_read_en.write(false);
-            break;
-        }
-            
-        case STATE_PROCESS2:
-            max_fifo_read_en.write(false);
-            output_fifo_read_en.write(false);
-            break;
-            
-        case STATE_PROCESS3: {
-            // PROCESS_3: Read from both FIFOs (drain stage)
-            // Only read when PROCESS_3 is NOT stalled
-            // If stall=1, freeze FIFO reads to prevent data loss
-            bool stall_active = stall_process3_output.read();
-            bool Process3Stage1Valid = process3_stage1_valid.read();   // for Max_FIFO and Output_FIFO output data time Alignment
-                       
-            if (stall_active) {
-                // STALL ACTIVE: Hold all FIFO operations (no reads)
-                max_fifo_read_en.write(false);         
-            } else {
-                // NORMAL: PROCESS_3 proceeding, read from FIFOs
-                max_fifo_read_en.write(true);           
-            }
+    bool reset = rst.read();
+    bool error = has_error.read();
+    sc_uint2 current_state = state.read();
 
-            std::cout << "Process3 Stage1 Valid: " << Process3Stage1Valid << std::endl;
-            if (!stall_active && Process3Stage1Valid) {
-                // STALL ACTIVE or stage1 is invalid disabled: Hold all FIFO operations (no reads)      
-                output_fifo_read_en.write(true);    
-            } else {
-                // Not stalled and process3_stage1_valid is true, read from FIFOs      
-                output_fifo_read_en.write(false);     
-            }
-
-            break;
-        }
-            
-        default:
-            // Default: disable all FIFO access
-            max_fifo_read_en.write(false);
-            output_fifo_read_en.write(false);
-            break;
+    // ============ FIFO Write Control ============
+    bool max_fifo_write = process1_stage1_valid.read();
+    bool output_fifo_write = process1_stage5_valid.read();
+    bool fifo_write_disable = reset || error || (current_state != STATE_PROCESS1);
+    if(fifo_write_disable) {
+        max_fifo_write_en.write(false);
+        output_fifo_write_en.write(false);
+    } else {
+        max_fifo_write_en.write(max_fifo_write);      
+        output_fifo_write_en.write(output_fifo_write);   
     }
-    
-    // FIFO clear signals: active when error is detected
-    bool error_active = has_error.read();
-    max_fifo_clear.write(error_active);
-    output_fifo_clear.write(error_active);
+
+    // ============ FIFO Read Control ============
+    bool fifo_read_disable = reset || error || (current_state != STATE_PROCESS3);
+    if(fifo_read_disable) {
+        max_fifo_read_en.write(false);
+        output_fifo_read_en.write(false);
+    } else {
+        bool max_fifo_pop = !process3_stall.read();  
+        bool output_fifo_pop = (!process3_stall.read()) && process3_stage2_valid.read();  
+
+        max_fifo_read_en.write(max_fifo_pop);           
+        output_fifo_read_en.write(output_fifo_pop);      
+    }
+
+    // ============ FIFO Clear Control ============
+    max_fifo_clear.write(reset || error);
+    output_fifo_clear.write(reset || error);
 }
 
 /**
@@ -132,46 +103,26 @@ void Softmax::manage_fifo_control() {
 void Softmax::execute_state_transition() {
     using namespace softmax::status;
     
-    sc_uint2 current_state = State.read();
-    sc_uint64 total_length = data_length.read();
+    sc_uint2 current_state = state.read();
+    bool p1_finish = process1_finish_flag.read();
+    bool p3_finish = process3_finish_flag.read();
     bool start_signal = start.read();
-    
-    // DEBUG: Track state transitions
-    /*static int debug_count = 0;
-    if (debug_count++ < 500) {
-        std::cerr << "[STATE_TRANS] state=" << (int)current_state.to_uint() 
-                 << " start=" << start_signal << " length=" << total_length 
-                 << " @" << sc_time_stamp() << std::endl;
-    }*/
-    
-    // Static trackers for state transitions
-    static bool process3_completion_detected = false;
-
+     
     if(rst.read() == true) {
-        // Reset all state and control signals
-        State.write(STATE_IDLE);
-        std::cerr << "============= STATE_IDLE(RESET) =============@" << sc_time_stamp() << std::endl;
+        state.write(STATE_IDLE);
         process_1_enable.write(false);
         process_2_enable.write(false);
         process_3_enable.write(false);
-        error_code_sig.write(ERR_NONE);
-        has_error.write(false);
-        done.write(false);
-        process3_completion_detected = false;
-        return;  // Skip normal state machine logic during reset
+        return;  
     }
     
     // ===== Error Handling: Force return to IDLE if error detected =====
     if (has_error.read()) {
-        // Immediately abort all processing and return to IDLE state
-        State.write(STATE_IDLE);
+        state.write(STATE_IDLE);
         process_1_enable.write(false);
         process_2_enable.write(false);
         process_3_enable.write(false);
-        done.write(true);
-        process3_completion_detected = false;
-        return;  // Skip normal state machine logic
-        std::cerr << "============= STATE_IDLE(ERROR) =============@" << sc_time_stamp() << std::endl;
+        return; 
     }
     
     switch (current_state) {
@@ -180,23 +131,10 @@ void Softmax::execute_state_transition() {
             process_1_enable.write(false);
             process_2_enable.write(false);
             process_3_enable.write(false);
-            process3_completion_detected = false;
-            error_code_sig.write(ERR_NONE);
-            has_error.write(false);
-            done.write(false);  // Clear interrupt signal
-            
+
             if (start_signal) {
-                // Validate data_length before starting
-                if (total_length == 0) {
-                    error_code_sig.write(ERR_DATA_LENGTH_ZERO);
-                    has_error.write(true);
-                    // Stay in IDLE, do not transition
-                } else {
-                    // Valid length, transition to PROCESS1
-                    State.write(STATE_PROCESS1);
-                    std::cerr << "============= STATE_PROCESS1 =============@" << sc_time_stamp() << std::endl;
-                    process_1_enable.write(true);
-                }
+                state.write(STATE_PROCESS1);
+                process_1_enable.write(true);
             }
             break;
             
@@ -205,65 +143,25 @@ void Softmax::execute_state_transition() {
             process_1_enable.write(true);
             process_2_enable.write(false);
             process_3_enable.write(false);
-            
-            // Transition to PROCESS2 when ALL conditions are met:
-            // Note: Each AXI transfer = 4 elements (64-bit / 16-bit FP16)
-            // 1. All valid data has been pushed to BOTH FIFOs (push_count_max * 4 >= total_length)
-            // 2. All valid data has been pushed to Output FIFO (push_count_output * 4 >= total_length)
-            // 3. ALL read data responses received from AXI (read_data_received * 4 >= total_length)
-            //    + Wait additional 20 cycles for pipeline to complete
-            sc_uint32 push_count_max = max_fifo_count.read();
-            sc_uint32 push_count_output = output_fifo_count.read();
-            sc_uint32 read_data_received = read_data_received_count_sig.read();
-            bool p1_finish = (read_data_received * 4 >= total_length) && 
-                             (push_count_max * 4 >= total_length) &&   
-                             (push_count_output * 4 >= total_length);  
             if (p1_finish) {
-                State.write(STATE_PROCESS2);
-                std::cerr << "-----------Data Current Flow---------" << std::endl;
-                std::cerr << "  read_data_received: " << read_data_received << std::endl;
-                std::cerr << "  max_fifo_count: " << max_fifo_count.read() << std::endl;
-                std::cerr << "  output_fifo_count: " << output_fifo_count.read() << std::endl;
-                std::cerr << "============= STATE_PROCESS2 =============@" << sc_time_stamp() << std::endl;
+                state.write(STATE_PROCESS2);
                 process_1_enable.write(false);
                 process_2_enable.write(true);
             } 
-
-            // Debug: Print buffer values and track PROCESS1 execution time
-            std::cerr << sc_time_stamp() << "-----------[Buffer Data]---------" << std::endl;
-            std::cerr << "Global_Max_Buffer: 0x" << std::hex << Global_Max_Buffer_Out.read() << std::endl;
-            uint32_t sum_buffer_val = Sum_Buffer_Out.read();
-            uint32_t int_part = (sum_buffer_val >> 16) & 0xFFFF;
-            uint32_t frac_part = sum_buffer_val & 0xFFFF;
-            double sum_buffer_dec = (double)int_part + (double)frac_part / 65536.0; // fixed point: 16.16
-            std::cerr << "Sum_Buffer: 0x" << std::hex << std::setw(4) << std::setfill('0') << int_part
-                      << "." << std::setw(4) << frac_part << std::dec << std::setfill(' ')
-                      << " -> " << std::fixed << std::setprecision(6) << sum_buffer_dec << std::endl;
-
             break;
         }
             
         case STATE_PROCESS2: {
-            // ===== PROCESS2 State: Main Computation =====
             process_1_enable.write(false);
             process_2_enable.write(true);
             process_3_enable.write(false);
             
-           
-
             // Counter to track PROCESS2 execution time
             static sc_dt::sc_uint<32> process2_cycle_counter = 0;
-            
             if (process_2_enable.read()) {
                 process2_cycle_counter++;
-                
-                // Transition when computation complete
-                // Assumed: PROCESS2 takes total 10 cycles
-                if (process2_cycle_counter >= 10) {
-                    State.write(STATE_PROCESS3);
-                    
-
-                    std::cerr << "============= STATE_PROCESS3 =============@" << sc_time_stamp() << std::endl;
+                if (process2_cycle_counter >= 10) {     // Assumed: PROCESS2 takes total 10 cycles
+                    state.write(STATE_PROCESS3);
                     process_2_enable.write(false);
                     process_3_enable.write(true);
                     process2_cycle_counter = 0;
@@ -273,46 +171,62 @@ void Softmax::execute_state_transition() {
         }
             
         case STATE_PROCESS3: {
-            // ===== PROCESS3 State: Write to Memory & Compute =====
             process_1_enable.write(false);
             process_2_enable.write(false);
             process_3_enable.write(true);
-            
-            
-            // Transition to IDLE when ALL write operations are complete:
-            // - write_addr_sent_num * 4 >= data_length (all addresses sent)
-            // - write_data_sent_num * 4 >= data_length (all data sent)
-            // - write_response_received_num * 4 >= data_length (all responses received)
-            sc_uint32 write_addr_count = write_addr_sent_num_sig.read();
-            sc_uint32 write_data_count = write_data_sent_num_sig.read();
-            sc_uint32 write_response_count = write_response_received_num_sig.read();
-            bool p3_finish = (write_addr_count * 4 >= total_length) && 
-                             (write_data_count * 4 >= total_length) && 
-                             (write_response_count * 4 >= total_length);
             if (p3_finish) {
                 // All write operations complete: transition to IDLE
-                State.write(STATE_IDLE);
-                std::cerr << "-----------Data Current Flow---------" << std::endl;
-                std::cerr << "  write_addr_count: " << write_addr_count << std::endl;
-                std::cerr << "  write_data_count: " << write_data_count << std::endl;
-                std::cerr << "  write_response_count: " << write_response_count << std::endl;
-                std::cerr << "============= STATE_IDLE =============@" << sc_time_stamp() << std::endl;
+                state.write(STATE_IDLE);
                 process_3_enable.write(false);
-                error_code_sig.write(ERR_NONE);  
-                has_error.write(false);
-                done.write(true);  
             }
             break;
         }
-            
+
         default:
             // ===== Invalid State: Return to IDLE =====
-            has_error.write(true);
-            error_code_sig.write(ERR_INVALID_STATE);
-            State.write(STATE_IDLE);
-            std::cerr << "============= STATE_IDLE(ERROR) =============@" << sc_time_stamp() << std::endl;
+            state.write(STATE_IDLE);
             break;
     }
+}
+
+// Transition to PROCESS2 when ALL conditions are met:
+// Note: Each AXI transfer = 4 elements (64-bit / 16-bit FP16)
+// 1. All valid data has been pushed to BOTH FIFOs (push_count_max * 4 >= total_length)
+// 2. All valid data has been pushed to Output FIFO (push_count_output * 4 >= total_length)
+// 3. ALL read data responses received from AXI (read_data_received * 4 >= total_length) 
+
+// Transition to IDLE when ALL write operations are complete:
+// - write_addr_sent_num * 4 >= data_length (all addresses sent)
+// - write_data_sent_num * 4 >= data_length (all data sent)
+// - write_response_received_num * 4 >= data_length (all responses received)
+void Softmax::state_transition_flag() {
+
+    sc_uint64 total_length = data_length.read();
+    sc_uint2 state_now = state.read();
+
+    // for process1 finish condition
+    sc_uint32 push_count_max = max_fifo_count.read();
+    sc_uint32 push_count_output = output_fifo_count.read();
+    sc_uint32 read_data_received = read_data_received_count_sig.read();
+
+    // for process3 finish condition
+    sc_uint32 write_addr_count = write_addr_sent_num_sig.read();
+    sc_uint32 write_data_count = write_data_sent_num_sig.read();
+    sc_uint32 write_response_count = write_response_received_num_sig.read();
+    
+    // Determine finish conditions for each process
+    bool p1_finish = (read_data_received * 4 >= total_length) && 
+                     (push_count_max * 4 >= total_length) &&   
+                     (push_count_output * 4 >= total_length) && 
+                     state_now == STATE_PROCESS1;  
+
+    bool p3_finish = (write_addr_count * 4 >= total_length) && 
+                     (write_data_count * 4 >= total_length) && 
+                     (write_response_count * 4 >= total_length) &&
+                     state_now == STATE_PROCESS3;
+
+    process1_finish_flag.write(p1_finish);
+    process3_finish_flag.write(p3_finish);
 }
 
 /**
@@ -328,27 +242,30 @@ void Softmax::execute_state_transition() {
  * [7:4]      error_code (4-bit error code)
  * [3]        error (1-bit error flag)
  * [2:1]      state (2-bit state value)
- * [0]        Reserved
+ * [0]        done (1-bit done flag, pulses HIGH for one clock when PROCESS3 completes)
  */
 void Softmax::status_update_process() {
     using namespace softmax::status;
     
     // Get current state and error info
-    sc_uint2 current_state = State.read();
+    sc_uint2 current_state = state.read();
     uint8_t error_code = error_code_sig.read();
     bool has_err = has_error.read();
+    bool done_signal = done_pulse.read();
     
     // Build status register value
     uint32_t status_value = 0;
     
+    // Set done bit [0]
+    if (done_signal) {
+        status_value |= (1 << 0);
+    }
     // Set state bits [2:1]
     status_value |= ((uint32_t)(current_state & 0x3) << 1);
-    
     // Set error flag bit [3]
     if (has_err) {
         status_value |= (1 << 3);
     }
-    
     // Set error code bits [7:4]
     status_value |= ((uint32_t)(error_code & 0xF) << 4);
     
@@ -366,13 +283,10 @@ void Softmax::status_update_process() {
 void Softmax::manage_process2_stall() {
     using namespace softmax::status;
     
-    sc_uint2 current_state = State.read();
-    
+    sc_uint2 current_state = state.read();
     if (current_state == STATE_PROCESS2) {
-        // STATE_PROCESS2: Allow PROCESS_2 output to propagate (no stall)
         stall_process2_output_Signal.write(false);
     } else {
-        // All other states: Stall PROCESS_2 output (freeze pipeline registers)
         stall_process2_output_Signal.write(true);
     }
 }
@@ -386,9 +300,9 @@ void Softmax::Buffer_Update() {
     static sc_uint16 global_max_reg = 0;        // Register to store FP16 max value
     static sc_uint32 sum_buffer_reg = 0;        // Register to store sum value
     
-    sc_uint2 current_state = State.read();
-    bool stage1_valid = stage1_data_valid.read();  // Stage1 validity for Max_FIFO
-    bool stage5_valid = stage5_data_valid.read();  // Stage5 validity for Output_FIFO
+    sc_uint2 current_state = state.read();
+    bool stage1_valid = process1_stage1_valid.read();   // Stage1 validity for Global_Max_Buffer
+    bool stage5_valid = process1_stage5_valid.read();   // Stage5 validity for Sum_Buffer
 
     if (rst.read()) {
         // Reset both buffers on reset signal
@@ -397,28 +311,22 @@ void Softmax::Buffer_Update() {
         Global_Max_Buffer_Out.write(0);
         Sum_Buffer_Out.write(0);
     } 
-    else if (current_state == STATE_PROCESS1) {
-        // PROCESS_1 stage: Update buffers only when stage data is valid
-        // Note: Each FIFO push is for 4 elements (one 64-bit transfer)
-        
+    else if (current_state == STATE_PROCESS1) {  
         // Update Global_Max_Buffer only when Stage1 data is valid
         if (stage1_valid) {
             sc_uint16 incoming_max = Global_Max_Buffer_In.read();  
-            global_max_reg = fp16_max(global_max_reg, incoming_max);
-            
+            global_max_reg = fp16_max(global_max_reg, incoming_max);  
         }
         
         // Update Sum_Buffer only when Stage5 data is valid
         if (stage5_valid) {
             sc_uint32 incoming_sum = Sum_Buffer_In.read();
             sum_buffer_reg = incoming_sum;
-
         }
         
         // Write updated values to outputs (combinational)
         Global_Max_Buffer_Out.write(global_max_reg);
         Sum_Buffer_Out.write(sum_buffer_reg);
-        
     } 
     else if (current_state == STATE_PROCESS2) {
         // Transitioning out of PROCESS1: keep outputs stable
@@ -430,11 +338,6 @@ void Softmax::Buffer_Update() {
         Global_Max_Buffer_Out.write(global_max_reg);
         Sum_Buffer_Out.write(sum_buffer_reg);
     }
-
-    /*std::cerr << "Buffer_Update: stage1_valid=" << stage1_valid 
-                      << " Global_Max_Buffer_In=0x" << std::hex << Global_Max_Buffer_In.read() 
-                      << " Global_Max_Buffer_Out=0x" << Global_Max_Buffer_Out.read() 
-                      << " @" << sc_time_stamp() << std::dec << std::endl;*/
 }
 
 /**
@@ -458,7 +361,7 @@ void Softmax::Buffer_Update() {
 void Softmax::axi_read_address_process() {
     using namespace softmax::status;
     
-    sc_uint2 current_state = State.read();
+    sc_uint2 current_state = state.read();
     sc_uint64 total_length = data_length.read();
     sc_uint64 src_base = src_addr_base.read();
     
@@ -469,12 +372,10 @@ void Softmax::axi_read_address_process() {
     const sc_uint32 READ_DATA_TIMEOUT_LIMIT = 100;
       
     if (rst.read()) {
-        axi_araddr_sig.write(0);
-        axi_arvalid_sig.write(false);
-        axi_rready_sig.write(false);
         read_addr_sent_num = 0;
         read_data_received_num = 0;
         read_data_received_count_sig.write(0);
+        read_addr_sent_num_sig.write(0);
         read_data_timeout_counter = 0;
 
     }
@@ -485,6 +386,7 @@ void Softmax::axi_read_address_process() {
         bool READ_ADDR_handshake = M_AXI_ARVALID.read() && M_AXI_ARREADY.read();
         if (READ_ADDR_handshake) { 
             read_addr_sent_num++;
+            read_addr_sent_num_sig.write(read_addr_sent_num);
             std::cerr << "[ADDR_READ_HANDSHAKE] read_addr_sent_num now " << read_addr_sent_num 
                     << " @" << sc_time_stamp() << std::endl;
         }
@@ -518,7 +420,6 @@ void Softmax::axi_read_address_process() {
                     << " @" << sc_time_stamp() << std::dec << std::endl;
         }
         
-        
         read_data_received_count_sig.write(read_data_received_num);  // Update signal for state machine
         
         // Set M_AXI_RREADY signal
@@ -527,28 +428,13 @@ void Softmax::axi_read_address_process() {
         } else {
             M_AXI_RREADY.write(false);      // All Read Data received
         }
-        
-        // ===== Timeout Detection: No new data for 100+ cycles =====
-        /*if (READ_DATA_handshake) {
-            read_data_timeout_counter = 0;  // Reset timeout counter when data arrives
-        } else {
-            read_data_timeout_counter++;    // No data received this cycle
-        }
-        
-        if (read_data_timeout_counter >= READ_DATA_TIMEOUT_LIMIT) {
-            // Just track timeout locally - execute_state_transition will check this
-            if (read_data_received_num * 4 < total_length) {
-                read_data_timeout_counter = 0;  // Reset to allow recovery
-            }
-        }*/
-
     }
     else {
         // Not in read states
-        axi_arvalid_sig.write(false);
-        axi_rready_sig.write(false);
         read_addr_sent_num = 0;
         read_data_received_num = 0;
+        read_addr_sent_num_sig.write(0);
+        read_data_received_count_sig.write(0);
         read_data_timeout_counter = 0;
     }
 }
@@ -569,12 +455,6 @@ void Softmax::axi_read_address_process() {
  *   - If M_AXI_AWREADY && M_AXI_WREADY: Write accepted, increment counters
  *   - If M_AXI_AWREADY=0 OR M_AXI_WREADY=0: Write stalled, stall PROCESS_3 output
  * 
- * **Stalling Logic:**
- * When write handshake is incomplete (not both AWREADY and WREADY):
- * - Set stall_process3_output=1 to freeze PROCESS_3 pipeline
- * - This prevents new data from propagating while AXI slave is busy
- * - Once slave is ready and handshake succeeds, clear stall signal
- * 
  * **Address Calculation:**
  * write_address = dst_base + (write_addr_sent_num * 8)
  * Uses write_addr_sent_num (not write_data_sent_num) as the index
@@ -582,15 +462,17 @@ void Softmax::axi_read_address_process() {
 void Softmax::axi_write_request_process() {
     using namespace softmax::status;
     
-    sc_uint2 current_state = State.read();
+    sc_uint2 current_state = state.read();
     sc_uint64 total_length = data_length.read();
     sc_uint64 dst_base = dst_addr_base.read();
-    bool stage3_valid = stage3_data_valid.read();  // Check PROCESS_3 Stage3 validity
-    
+    bool stage4_valid = process3_stage4_valid.read();  // Check PROCESS_3 Stage4 validity (aligned with M_AXI_WDATA)
+
     // Static counters for tracking write operations
     static sc_uint32 write_addr_sent_num = 0;
     static sc_uint32 write_data_sent_num = 0;
     static sc_uint32 write_response_received_num = 0;
+    static bool prev_stage3_valid = false;
+    static bool prev_stall = false;
     
     if (rst.read()) {
         M_AXI_AWADDR.write(0);
@@ -598,15 +480,17 @@ void Softmax::axi_write_request_process() {
         M_AXI_WSTRB.write(0);
         M_AXI_WVALID.write(false);
         M_AXI_BREADY.write(false);
-        stall_process3_output.write(false);
         write_addr_sent_num_sig.write(0);
         write_data_sent_num_sig.write(0);
         write_response_received_num_sig.write(0);
         write_addr_sent_num = 0;
         write_data_sent_num = 0;
         write_response_received_num = 0;
+        prev_stage3_valid = false;
+        prev_stall = false;
     }
     else if (current_state == STATE_PROCESS3) {
+        
         // During PROCESS3: manage write handshakes based on data validity
         //====================WRITE ADDR========================
         // WRITE_ADDR Handshake occurred:
@@ -618,7 +502,7 @@ void Softmax::axi_write_request_process() {
                     << " @" << sc_time_stamp() << std::endl;
         }
         
-        if (write_addr_sent_num * 4 < total_length && stage3_valid) {
+        if (write_addr_sent_num * 4 < total_length && stage4_valid) {
             sc_uint64 next_dst_addr = dst_base + (sc_uint64)write_addr_sent_num * 8;
             M_AXI_AWADDR.write((sc_dt::sc_uint<32>)(next_dst_addr & 0xFFFFFFFF));
             M_AXI_AWVALID.write(true);  
@@ -630,34 +514,36 @@ void Softmax::axi_write_request_process() {
             M_AXI_AWVALID.write(false);  
         }
 
+
         //====================WRITE DATA========================
         M_AXI_WSTRB.write(0xFF);    // Set write strb to enabled all 8 bytes when writing
 
         bool WRITE_DATA_handshake = M_AXI_WVALID.read() && M_AXI_WREADY.read();
+        std::cerr << "\033[35m" << "M_AXI_WVALID: " << M_AXI_WVALID.read() << " M_AXI_WREADY: " << M_AXI_WREADY.read() << "\033[0m" << " @" << sc_time_stamp()<< std::endl;
         if (WRITE_DATA_handshake) { 
             write_data_sent_num++;
             write_data_sent_num_sig.write(write_data_sent_num);
 
             sc_uint64 data = M_AXI_WDATA.read();
-            std::cerr << "[WRITE_DATA_HANDSHAKE] Num: " << std::dec << write_data_sent_num 
-                    << " READ DATA : 0x" 
+            std::cerr << "\033[34m" << "[WRITE_DATA_HANDSHAKE] " << "\033[34m" <<"Num: " << std::dec << write_data_sent_num 
+                    << "\033[34m" << " WRITE DATA : 0x" 
                     << std::hex << std::setfill('0')
                     << std::setw(4) << data.range(63, 48) << " "
                     << std::setw(4) << data.range(47, 32) << " "
                     << std::setw(4) << data.range(31, 16) << " "
                     << std::setw(4) << data.range(15, 0)
-                    << " @" << sc_time_stamp() << std::dec << std::endl;
-        }
-        sc_uint64 data_1 = M_AXI_WDATA.read();
-        std::cerr << "[WRITE_DATA] " << "\033[34m" << "DATA : 0x"   
-                    << std::hex << std::setfill('0')
-                    << std::setw(4) << data_1.range(63, 48) << " "
-                    << std::setw(4) << data_1.range(47, 32) << " "
-                    << std::setw(4) << data_1.range(31, 16) << " "
-                    << std::setw(4) << data_1.range(15, 0)
                     << "\033[0m" << " @" << sc_time_stamp() << std::dec << std::endl;
+        }
+        /*sc_uint64 data_1 = M_AXI_WDATA.read();
+        std::cerr << "[WRITE_DATA] " << "\033[34m" << "DATA : 0x"   
+                    << std::hex 
+                    << data_1.range(63, 48) << " "
+                    << data_1.range(47, 32) << " "
+                    << data_1.range(31, 16) << " "
+                    << data_1.range(15, 0)
+                    << "\033[0m" << " @" << sc_time_stamp() << std::dec << std::endl;*/
 
-        if (write_data_sent_num * 4 < total_length && stage3_valid) {
+        if (write_data_sent_num * 4 < total_length && stage4_valid) {
             M_AXI_WVALID.write(true);  
         } else {
             M_AXI_WVALID.write(false);  
@@ -670,16 +556,10 @@ void Softmax::axi_write_request_process() {
         if (WRITE_RESP_handshake) { 
             write_response_received_num++;
             write_response_received_num_sig.write(write_response_received_num);
-            std::cerr << "[WRITE_RESP_HANDSHAKE] write_response_received_num now " << write_response_received_num 
-                    << " @" << sc_time_stamp() << std::endl;
+            std::cerr << "\033[1;34m" << "[WRITE_RESP_HANDSHAKE] write_response_received_num now " << write_response_received_num 
+                    << "\033[0m" << " @" << sc_time_stamp() << std::endl;
         }
 
-        //====================stall_process3========================
-        // Stall PROCESS3 only when a VALID is asserted but READY is not asserted yet.
-        // This prevents stalling when there is no active transaction.
-        bool STALL_PROCESS = (M_AXI_AWVALID.read() && !M_AXI_AWREADY.read()) ||
-                             (M_AXI_WVALID.read()  && !M_AXI_WREADY.read());
-        stall_process3_output.write(STALL_PROCESS);
     }
     else {
         // Not in write states
@@ -688,29 +568,273 @@ void Softmax::axi_write_request_process() {
         M_AXI_WSTRB.write(0);
         M_AXI_WVALID.write(false);
         M_AXI_BREADY.write(false);
-        stall_process3_output.write(false);
         write_addr_sent_num_sig.write(0);
         write_data_sent_num_sig.write(0);
         write_response_received_num_sig.write(0);
         write_addr_sent_num = 0;
         write_data_sent_num = 0;
         write_response_received_num = 0;
+        prev_stage3_valid = false;
+        prev_stall = false;
     }
 }
 
+ /* **Stalling Logic:**
+ * When write handshake is incomplete (not both AWREADY and WREADY):
+ * - Set process3_stall=1 to freeze PROCESS_3 pipeline
+ * - This prevents new data from propagating while AXI slave is busy
+ * - Once slave is ready and handshake succeeds, clear stall signal
+ */
+void Softmax::stall_process3_control() {
+    sc_uint2 state_now = state.read();
+    // Data has arrived at stage4 (aligned with M_AXI_WDATA), but AXI slave is not ready to accept data
+    bool STALL_PROCESS = process3_stage4_valid.read() && !M_AXI_WREADY.read();
+    if (rst.read()) {
+        process3_stall.write(false);
+    } else if (state_now == STATE_PROCESS3) {
+        process3_stall.write(STALL_PROCESS);
+    } else {
+        process3_stall.write(false);
+    }
+}
+
+
 void Softmax::validity_signal_update() {
     process1_read_data_valid.write( M_AXI_RVALID.read() && M_AXI_RREADY.read());
-    process3_read_data_valid.write( process_3_enable.read() && !max_fifo_empty.read() && max_fifo_read_en.read() );
+    process3_read_data_valid.write(max_fifo_read_en.read());
+
 }
 
-void Softmax::process3_read_data_valid_delay1() {
-    process3_read_data_valid_delay.write( process3_read_data_valid.read() );
-}
-// delay the valid signal for one cycle to align with the data output from Max_FIFO and Output_FIFO, which are read in Process3  
+void Softmax::dubug_print() {
+    bool max_fifo_pop = !process3_stall.read();  
+    bool output_fifo_pop = (!process3_stall.read()) && process3_stage2_valid.read();
 
-/*
-void Softmax::print_Global_Max_Buffer_In() {
-    sc_uint16 max_in = Global_Max_Buffer_In.read();
-    std::cerr << "Global_Max_Buffer_In: 0x" << std::hex << std::setw(4) << std::setfill('0') 
-              << static_cast<uint16_t>(max_in) << std::dec << " @" << sc_time_stamp() << std::endl;
-}*/
+    bool axi_write_handshake = (M_AXI_WVALID.read() && M_AXI_WREADY.read());
+    std::cerr << "\033[32m" << "[axi_write_handshake]: " << axi_write_handshake 
+              << "[process3_stall]: " << process3_stall.read() << "\033[0m" << " @" << sc_time_stamp() << std::endl;
+    std::cerr << "\033[32m" << "[max_fifo_read_en]: " << max_fifo_read_en.read() 
+              << "[output_fifo_read_en]: " << output_fifo_read_en.read() << "\033[0m" << " @" << sc_time_stamp() << std::endl;
+}
+ 
+
+/**
+ * @brief Done Pulse Handler
+ * 
+ * **Functional Overview:**
+ * Generates a one-cycle pulse for the done signal when PROCESS3 completes.
+ * Detects the rising edge of p3_finish (transition from false to true) and
+ * pulses done_pulse HIGH for exactly one clock cycle.
+ * 
+ * **Operation:**
+ * Clock 0: p3_finish=0, p3_finish_prev=0 → done_pulse=0
+ * Clock 1: p3_finish=1, p3_finish_prev=0 → Rising edge detected → done_pulse=1, p3_finish_prev=1
+ * Clock 2: p3_finish=1, p3_finish_prev=1 → No rising edge → done_pulse=0, p3_finish_prev=1
+ * 
+ * This ensures only ONE clock cycle with done_pulse=1
+ */
+void Softmax::done_pulse_handler() {
+    sc_uint32 waddr_count = write_addr_sent_num_sig.read();
+    sc_uint32 wdata_count = write_data_sent_num_sig.read();
+    sc_uint32 wresp_count = write_response_received_num_sig.read();
+    sc_uint64 length = data_length.read();
+    
+    // Check if all write operations are complete
+    bool p3_finish = (waddr_count * 4 >= length) && 
+                     (wdata_count * 4 >= length) && 
+                     (wresp_count * 4 >= length);
+    
+    // Read previous cycle's p3_finish state
+    bool p3_finish_prev = done_pulse_prev.read();
+    
+    if (rst.read()) {
+        done_pulse.write(false);
+        done_pulse_prev.write(false);
+    }
+    else if (p3_finish && !p3_finish_prev) {
+        done_pulse.write(true);
+    }
+    else {
+        done_pulse.write(false);
+    }
+    
+    // Update prev state for next cycle
+    done_pulse_prev.write(p3_finish);
+}
+
+void Softmax::error_detection_process() {
+    using namespace softmax::status;
+    
+    sc_uint2 current_state = state.read();
+    sc_uint64 total_length = data_length.read();
+    bool start_signal = start.read();
+    
+    // Static counters for timeout detection (maintained across cycles)
+    static sc_uint32 read_timeout_counter = 0;
+    static sc_uint32 write_timeout_counter = 0;
+    
+    // Check for error conditions
+    bool error_detected = false;
+    uint8_t error_code = ERR_NONE;
+    
+    // ===== Check for Invalid State =====
+    // Ensure current_state is within valid range (0-3)
+    if (current_state > 3) {
+        error_detected = true;
+        error_code = ERR_INVALID_STATE;
+    }
+    
+    // ===== Check for Data Length Error =====
+    // Data length is invalid at start: zero or exceeds configured DATA_LENGTH_MAX.
+    if (!error_detected && current_state == STATE_IDLE && start_signal &&
+        (total_length == 0 || total_length > DATA_LENGTH_MAX)) {
+        error_detected = true;
+        error_code = ERR_DATA_LENGTH_INVALID;
+    }
+    
+    // ===== Check for Max FIFO Overflow =====
+    if (!error_detected && max_fifo_full.read() && process1_stage1_valid.read()) {
+        error_detected = true;
+        error_code = ERR_MAX_FIFO_OVERFLOW;
+    }
+    
+    // ===== Check for Output FIFO Overflow =====
+    if (!error_detected && output_fifo_full.read() && process1_stage5_valid.read()) {
+        error_detected = true;
+        error_code = ERR_OUTPUT_FIFO_OVERFLOW;
+    }
+    
+    // ===== Check for AXI Read Error =====
+    if (!error_detected && current_state == STATE_PROCESS1) {
+        // Check AXI read response error
+        // RRESP: 2'b00 = OKAY, 2'b01 = EXOKAY, 2'b10 = SLVERR, 2'b11 = DECERR
+        bool read_error_occurred = M_AXI_RVALID.read() && M_AXI_RREADY.read() && 
+                                   (M_AXI_RRESP.read() != 0x0);
+        if (read_error_occurred) {
+            error_detected = true;
+            error_code = ERR_AXI_READ_ERROR;
+        }
+    }
+    
+    // ===== Check for AXI Read Data Missing =====
+    if (!error_detected && process1_finish_flag.read()) {
+        sc_uint32 addr_sent = read_addr_sent_num_sig.read();
+        sc_uint32 data_received = read_data_received_count_sig.read();
+        
+        // If number of addresses sent does not match number of data received, some data is missing
+        if (addr_sent != data_received) {
+            error_detected = true;
+            error_code = ERR_AXI_READ_DATA_MISSING;
+        }
+        // Debugging: print the number of addresses sent and data received at the end of PROCESS1
+        std::cerr << "-----------[Data Read Details]---------" << std::endl;
+        std::cerr << "   Read Data Received: " << data_received << std::endl;
+        std::cerr << "   Read Addr Sent: " << addr_sent << std::endl;
+        std::cerr << "   Max FIFO Count: " << max_fifo_count.read() << std::endl;
+        std::cerr << "   Output FIFO Count: " << output_fifo_count.read() << std::endl;
+    }
+    
+    // ===== Check for AXI Write Error =====
+    if (!error_detected && current_state == STATE_PROCESS3) {
+        // Check AXI write response error
+        // BRESP: 2'b00 = OKAY, 2'b01 = EXOKAY, 2'b10 = SLVERR, 2'b11 = DECERR
+        bool write_error_occurred = M_AXI_BVALID.read() && M_AXI_BREADY.read() && 
+                                    (M_AXI_BRESP.read() != 0x0);
+        if (write_error_occurred) {
+            error_detected = true;
+            error_code = ERR_AXI_WRITE_ERROR;
+        }
+    }
+    
+    // ===== Check for AXI Write Response Mismatch =====
+    if (!error_detected && process3_finish_flag.read()) {
+        sc_uint32 addr_sent = write_addr_sent_num_sig.read();
+        sc_uint32 data_sent = write_data_sent_num_sig.read();
+        sc_uint32 resp_received = write_response_received_num_sig.read();
+
+        // If the number of addresses sent, data sent, and responses received do not match, there is a mismatch
+        bool error_condition = (addr_sent != data_sent) || (addr_sent != resp_received) || (data_sent != resp_received);
+        
+        if (error_condition) {
+            error_detected = true;
+            error_code = ERR_AXI_WRITE_RESPONSE_MISMATCH;
+        }
+        std::cerr << "-----------[Data Write Details]---------" << std::endl;
+        std::cerr << "   Write Addr Count: " << addr_sent << std::endl;
+        std::cerr << "   Write Data Count: " << data_sent << std::endl;
+        std::cerr << "   Write Response Count: " << resp_received << std::endl;
+        
+    }
+    
+    // ===== Check for AXI Read Timeout =====
+    // Track READ_DATA handshake (M_AXI_RVALID && M_AXI_RREADY) inactivity
+    if (!error_detected && current_state == STATE_PROCESS1) {
+        bool read_data_handshake = M_AXI_RVALID.read() && M_AXI_RREADY.read();
+        bool read_addr_handshake = M_AXI_ARVALID.read() && M_AXI_ARREADY.read();
+        bool any_read_handshake = read_data_handshake || read_addr_handshake;
+        sc_uint32 pack_received = read_data_received_count_sig.read();
+        sc_uint64 data_received = (sc_uint64)pack_received * 4;
+        
+        if (any_read_handshake) {
+            // Handshake occurred: reset timeout counter
+            read_timeout_counter = 0;
+        } else if (data_received < total_length) {
+            // No handshake and transfer incomplete: increment timeout counter
+            read_timeout_counter++;
+            
+            // Timeout detected if counter >= AXI_TIMEOUT_THRESHOLD
+            if (read_timeout_counter >= AXI_TIMEOUT_THRESHOLD) {
+                error_detected = true;
+                error_code = ERR_AXI_READ_TIMEOUT;
+            }
+        }
+    }
+    // When not in PROCESS1, reset read timeout counter
+    else if (current_state != STATE_PROCESS1) {
+        read_timeout_counter = 0;
+    }
+    
+    // ===== Check for AXI Write Timeout =====
+    // Track any write handshake inactivity (AWVALID&&AWREADY OR WVALID&&WREADY OR BVALID&&BREADY)
+    if (!error_detected && current_state == STATE_PROCESS3) {
+        bool write_addr_handshake = M_AXI_AWVALID.read() && M_AXI_AWREADY.read();
+        bool write_data_handshake = M_AXI_WVALID.read() && M_AXI_WREADY.read();
+        bool write_resp_handshake = M_AXI_BVALID.read() && M_AXI_BREADY.read();
+        bool any_write_handshake = write_addr_handshake || write_data_handshake || write_resp_handshake;
+        sc_uint32 addr_pack_sent = write_addr_sent_num_sig.read();
+        sc_uint32 data_pack_sent = write_data_sent_num_sig.read();
+        sc_uint32 resp_received = write_response_received_num_sig.read();
+        sc_uint64 addr_sent = (sc_uint64)addr_pack_sent * 4;
+        sc_uint64 data_sent = (sc_uint64)data_pack_sent * 4;
+        sc_uint64 resp_recv = (sc_uint64)resp_received * 4;
+        
+        // Check if transfer incomplete
+        bool transfer_incomplete = (addr_sent < total_length) || (data_sent < total_length) || (resp_recv < total_length);
+
+        //std::cerr << "write_timeout_counter: " << write_timeout_counter << " @" << sc_time_stamp() << std::endl;
+        if (any_write_handshake) {
+            // Any write handshake occurred: reset timeout counter
+            write_timeout_counter = 0;
+        } else if (transfer_incomplete && !any_write_handshake &&
+                   (M_AXI_AWVALID.read() || M_AXI_WVALID.read() || M_AXI_BREADY.read())) {
+            // No handshake while AWVALID/WVALID/BVALID is asserted: increment timeout counter.
+            write_timeout_counter++;
+        } else {
+            // Do not count idle pipeline bubbles as AXI timeout.
+            write_timeout_counter = 0;
+        }
+            
+        // Timeout detected if counter >= AXI_TIMEOUT_THRESHOLD
+        if (write_timeout_counter >= AXI_TIMEOUT_THRESHOLD) {
+            error_detected = true;
+            error_code = ERR_AXI_WRITE_TIMEOUT;
+        }
+    }
+    // When not in PROCESS3, reset write timeout counter
+    else if (current_state != STATE_PROCESS3) {
+        write_timeout_counter = 0;
+    }
+    
+    // ===== Update error signals =====
+    has_error.write(error_detected);
+    error_code_sig.write(error_code);
+}

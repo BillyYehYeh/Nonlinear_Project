@@ -9,7 +9,6 @@ using sc_uint4 = sc_dt::sc_uint<4>;
 using sc_uint5 = sc_dt::sc_uint<5>;
 using sc_uint16 = sc_dt::sc_uint<16>;
 using sc_uint1 = sc_dt::sc_uint<1>;
-using sc_uint10 = sc_dt::sc_uint<10>;
 
 /**
  * @brief SystemC Module for Divider

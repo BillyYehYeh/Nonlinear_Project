@@ -1,5 +1,10 @@
 #include "Output_FIFO.h"
 #include <iomanip>
+#include <cstdint>
+#include <sstream>
+#include <string>
+
+static constexpr unsigned FIFO_ADDR_MASK = (1u << OUTPUT_FIFO_ADDR_BITS) - 1u;
 
 /**
  * @brief Update full and empty flags based on pointers
@@ -8,19 +13,15 @@
  * Full: (write_addr + 1) % 1024 == read_addr
  */
 void Output_FIFO::update_flags() {
-    sc_uint10 w_ptr = write_addr_sig.read();
-    sc_uint10 r_ptr = read_addr_sig.read();
+    output_fifo_addr_t w_ptr = write_addr_sig.read();
+    output_fifo_addr_t r_ptr = read_addr_sig.read();
     
     // FIFO is empty when pointers are equal
     empty.write(w_ptr == r_ptr);
     
     // FIFO is full when next write would overwrite read pointer
-    bool is_full = (((w_ptr + 1) & 0x3FF) == r_ptr);
+    bool is_full = (((w_ptr + 1) & FIFO_ADDR_MASK) == r_ptr);
     full.write(is_full);
-    
-    // Occupancy: difference between write and read pointers (modulo 1024)
-    sc_uint10 occupancy = w_ptr - r_ptr;
-    count.write(occupancy);
 }
 
 /**
@@ -44,17 +45,35 @@ void Output_FIFO::pointer_update() {
     } else {
         // Normal operation
         // Only advance pointers when not full/empty respectively
-        if (write_en.read() && !full.read()) {
-            sc_uint10 w_ptr = write_addr_sig.read();
-            write_addr_sig.write((w_ptr + 1) & 0x3FF);  // Modulo 1024
-            std::cerr << "\033[32m" << "[OUTPUT_FIFO] Push Count: " << count.read() << "  Push Data: "<< "0x" << std::hex << data_in.read() << std::dec << "\033[0m" << "  @ " << sc_time_stamp() << std::endl;
+        if (we_sig.read()) {
+            output_fifo_addr_t w_ptr = write_addr_sig.read();
+            write_addr_sig.write((w_ptr + 1) & FIFO_ADDR_MASK);  // Modulo FIFO depth
         }
 
-        if (read_en.read() && !empty.read()) {
-            sc_uint10 r_ptr = read_addr_sig.read();
-            read_addr_sig.write((r_ptr + 1) & 0x3FF);   // Modulo 1024
+        if (re_sig.read()) {
+            output_fifo_addr_t r_ptr = read_addr_sig.read();
+            read_addr_sig.write((r_ptr + 1) & FIFO_ADDR_MASK);   // Modulo FIFO depth
         }
     }
+}
+
+void Output_FIFO::count_update() {
+    if (rst.read() || clear.read()) {
+        count.write(0);
+        return;
+    }
+
+    output_fifo_addr_t count_next = count.read();
+    const bool accepted_write = we_sig.read();
+    const bool accepted_read_handshake = read_ready.read() && read_valid.read();
+
+    if (accepted_write && !accepted_read_handshake) {
+        count_next = count_next + 1;
+    } else if (!accepted_write && accepted_read_handshake) {
+        count_next = count_next - 1;
+    }
+
+    count.write(count_next);
 }
 
 /**
@@ -64,16 +83,72 @@ void Output_FIFO::pointer_update() {
  * Note: Data has 1-cycle latency due to SRAM pipeline register.
  */
 void Output_FIFO::read_output() {
-    data_out.write(sram_rdata_sig.read());
+    if (skid_valid_sig.read()) {
+        data_out.write(skid_reg_sig.read());
+    } else {
+        data_out.write(sram_rdata_sig.read());
+    }
 }
 
 void Output_FIFO::gate_signals() {
+    // Keep write protection against full and continuously prefetch reads
+    // while there is buffered capacity (skid + in-flight return < 2).
+    // This keeps output data ready even when read_ready toggles.
+    unsigned buffered = (skid_valid_sig.read() ? 1u : 0u)
+                      + (sram_output_data_valid.read() ? 1u : 0u);
+
     bool we = write_en.read() && !full.read();
-    bool re = read_en.read() && !empty.read();
+    bool re = false;
+    if (!empty.read()) {
+        if (read_ready.read()) {
+            re = (buffered < 2u);
+        } else {
+            // When downstream is not ready, keep only one unconsumed head item
+            // in the output path to avoid overwriting skid data.
+            re = !skid_valid_sig.read() && !sram_output_data_valid.read();
+        }
+    }
     we_sig.write(we);
     re_sig.write(re);
 }
 
+void Output_FIFO::output_pipeline_update() {
+    if (rst.read() || clear.read()) {
+        skid_reg_sig.write(0);
+        skid_valid_sig.write(false);
+        sram_output_data_valid.write(false);
+        return;
+    }
+
+    sc_uint16 skid_reg_next = skid_reg_sig.read();
+    bool skid_valid_next = skid_valid_sig.read();
+
+    const bool consume_skid = read_ready.read() && skid_valid_next;
+    if (consume_skid) {
+        skid_valid_next = false;
+    }
+
+    const bool new_data_valid = sram_output_data_valid.read();
+    if (new_data_valid) {
+        const sc_uint16 new_data = sram_rdata_sig.read();
+        // Data can bypass directly only when there is no skid data and the
+        // downstream consumes this cycle; otherwise retain it in skid.
+        const bool bypass_consumed = read_ready.read() && !skid_valid_sig.read();
+        if (!bypass_consumed) {
+            skid_valid_next = true;
+            skid_reg_next = new_data;
+        }
+    }
+
+    skid_reg_sig.write(skid_reg_next);
+    skid_valid_sig.write(skid_valid_next);
+    sram_output_data_valid.write(re_sig.read());
+}
+
+void Output_FIFO::read_data_valid_flag() {
+    read_valid.write(sram_output_data_valid.read() || skid_valid_sig.read());
+}
+/*
 void Output_FIFO::Print_FIFO_SRAM() {
     sc_uint10 w_ptr = write_addr_sig.read();
     sc_uint10 r_ptr = read_addr_sig.read();
@@ -124,6 +199,9 @@ void Output_FIFO::Print_FIFO_SRAM() {
         std::cerr << "  <no valid data>" << std::endl;
     }
     std::cerr << "data_out=0x" << std::hex << std::setw(4) << std::setfill('0') << static_cast<uint16_t>(data_out.read()) 
-              << " count=" << std::dec << count.read() << std::endl;
+              << " count=" << std::dec << count.read()
+              << " skid_valid=" << skid_valid_sig.read()
+              << " skid_reg=0x" << std::hex << std::setw(4) << std::setfill('0') << static_cast<uint16_t>(skid_reg_sig.read())
+              << std::dec << std::setfill(' ') << std::endl;
     std::cerr << "\033[0m";
-}
+}*/

@@ -119,33 +119,61 @@ constexpr uint32_t CTRL_MODE_BIT   = 31;
 
 // ===== Status Register Bit Fields =====
 // Format: Register offset + bit position
+// **Status Register Format (32-bit):**
+// [31:8]     Reserved
+// [7:4]      error_code (4-bit error code)
+// [3]        error (1-bit error flag)
+// [2:1]      state (2-bit state: 0=IDLE, 1=PROCESS1, 2=PROCESS2, 3=PROCESS3)
+// [0]        done (1-bit done flag, pulses HIGH for one clock when PROCESS3 completes)
 
 /**
  * @brief DONE Flag Bit Position
  * Bit Position: [0]
  * Description: Indicates operation completion
  *   0 = Operation in progress or not started
- *   1 = Operation completed
+ *   1 = Operation completed (pulses HIGH for one clock cycle)
  */
 constexpr uint32_t STAT_DONE_BIT   = 0;
 
 /**
- * @brief BUSY Flag Bit Position
+ * @brief STATE Bit Position (Lower bits for 2-bit state value)
  * Bit Position: [1]
- * Description: Indicates operation in progress
- *   0 = Idle/ready for new operation
- *   1 = Operation in progress
+ * Description: Lower bit of state value
+ *   Combined with bit [2] for 2-bit state encoding
  */
-constexpr uint32_t STAT_BUSY_BIT   = 1;
+constexpr uint32_t STAT_STATE_LSB  = 1;
+
+/**
+ * @brief STATE Bit Position (Upper bits for 2-bit state value)
+ * Bit Position: [2]
+ * Description: Upper bit of state value
+ *   State range: 0-3, representing IDLE, PROCESS1, PROCESS2, PROCESS3
+ */
+constexpr uint32_t STAT_STATE_MSB  = 2;
 
 /**
  * @brief ERROR Flag Bit Position
- * Bit Position: [2]
+ * Bit Position: [3]
  * Description: Indicates error condition
  *   0 = No error
  *   1 = Error occurred during operation
  */
-constexpr uint32_t STAT_ERROR_BIT  = 2;
+constexpr uint32_t STAT_ERROR_BIT  = 3;
+
+/**
+ * @brief ERROR CODE Bit Position (Lower bits for 4-bit error code)
+ * Bit Position: [4]
+ * Description: Lower bit of error code value
+ */
+constexpr uint32_t STAT_ERROR_CODE_LSB = 4;
+
+/**
+ * @brief ERROR CODE Bit Position (Upper bits for 4-bit error code)
+ * Bit Position: [7]
+ * Description: Upper bit of error code value (4-bit total)
+ */
+constexpr uint32_t STAT_ERROR_CODE_MSB = 7;
+
 
 // ===== Address Offset Mask =====
 // Used to extract register offset from full addresses

@@ -269,7 +269,7 @@ void PROCESS_1_Module::Output_Comb() {
 }
 
 // Print all pipeline stage registers on clock edge in yellow
-void PROCESS_1_Module::Print_Stage_Regs() {
+/*void PROCESS_1_Module::Print_Stage_Regs() {
     if(enable.read())
     {
         const char* YELLOW = "\033[33m";
@@ -290,5 +290,5 @@ void PROCESS_1_Module::Print_Stage_Regs() {
         std::cerr << " Stage5: " << s5 << "\n";
         std::cerr << RESET << std::flush;
     }
-}
+}*/
 

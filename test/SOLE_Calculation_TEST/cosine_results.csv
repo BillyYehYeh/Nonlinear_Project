@@ -1,0 +1,12 @@
+case_name,input_count,execution_time_ns,cosine_similarity,cosine_gt_threshold,timeout_detected
+01_uniform_distribution,128,93,1.000000000,yes,no
+02_high_contrast_1_2_10,128,93,0.999999974,yes,no
+03_extreme_large_1000_1001_1002,128,93,1.000000000,yes,no
+04_close_values_1p001_1p002_1p003,128,93,1.000000000,yes,no
+05_all_zeros,128,93,1.000000000,yes,no
+06_alternating_sign_pm5,128,93,0.999999619,yes,no
+07_single_spike,128,93,0.999999882,yes,no
+08_increasing_ramp_minus4_to_4,128,93,0.996702240,yes,no
+09_decreasing_ramp_4_to_minus4,128,93,0.996704890,yes,no
+10_bimodal_clusters,128,93,1.000000000,yes,no
+11_tiny_magnitudes,128,93,1.000000000,yes,no

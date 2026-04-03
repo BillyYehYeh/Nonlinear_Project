@@ -158,7 +158,7 @@ void SOLE::mmio_access_process() {
     // --- Status Update Logic ---
     sc_uint32 status = softmax_status.read();
     sc_uint32 ctrl = reg_control.read();
-    
+
     // Update Status register
     reg_status.write(status);
     
@@ -283,3 +283,16 @@ void SOLE::demux_logic() {
         M_AXI_RREADY.write(false);
     }
 }
+
+void SOLE::interrupt_update_process() {
+    if (rst.read()) {
+        interrupt.write(false);
+        return;
+    }
+
+    sc_uint32 status = reg_status.read();
+    bool done = ((status >> STAT_DONE_BIT) & 0x1) != 0;
+    bool error = ((status >> STAT_ERROR_BIT) & 0x1) != 0;
+    interrupt.write(done || error);
+}
+
