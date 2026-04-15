@@ -29,12 +29,7 @@ package sole_pkg;
     STATE_PROCESS3 = 2'd3
   } state_t;
 
-  function automatic int clamp_int(input int v, input int lo, input int hi);
-    if (v < lo) return lo;
-    if (v > hi) return hi;
-    return v;
-  endfunction
-
+`ifndef SYNTHESIS
   function automatic int leading_one_pos32(input logic [31:0] x);
     int i;
     leading_one_pos32 = 0;
@@ -46,7 +41,6 @@ package sole_pkg;
     end
   endfunction
 
-`ifndef SYNTHESIS
   function automatic real fp16_to_real(input logic [15:0] h);
     int s;
     int e;
@@ -136,7 +130,6 @@ package sole_pkg;
   function automatic logic [15:0] fp16_from_small_real(input real v);
     return real_to_fp16(v);
   endfunction
-`endif
 
   function automatic logic fp16_is_nan(input logic [15:0] h);
     fp16_is_nan = (h[14:10] == 5'h1F) && (h[9:0] != 10'h000);
@@ -187,5 +180,6 @@ package sole_pkg;
     if (fp16_gt(a, b)) return a;
     return b;
   endfunction
+`endif
 endpackage
 `endif

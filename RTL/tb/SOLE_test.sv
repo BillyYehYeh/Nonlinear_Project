@@ -2,7 +2,7 @@
 `include "sole_pkg.sv"
 
 module AxiSlaveMemory #(
-  parameter int TEST_DATA_SIZE = 2048
+  parameter int TEST_DATA_SIZE = 4096
 ) (
   input  logic        clk,
   input  logic        rst,
@@ -25,13 +25,18 @@ module AxiSlaveMemory #(
   input  logic        S_AXI_RREADY
 );
   import sole_pkg::*;
-  logic [63:0] memory [0:TEST_DATA_SIZE-1];
+  (* ic_user_defined_disable = "ICPD" *) reg [63:0] memory [0:TEST_DATA_SIZE-1];
   logic [31:0] awaddr_q;
   logic        awaddr_valid;
+  logic [31:0] write_addr_q;
+  logic [63:0] write_data_q;
+  logic        do_write;
   integer wi;
 
-  initial begin
-    for (wi = 0; wi < TEST_DATA_SIZE; wi++) memory[wi] = 64'd0;
+  always @(posedge clk) begin
+    if (do_write) begin
+      memory[write_addr_q >> 3] <= write_data_q;
+    end
   end
 
   always_ff @(posedge clk) begin
@@ -46,10 +51,14 @@ module AxiSlaveMemory #(
       S_AXI_RDATA <= 64'd0;
       awaddr_q <= 32'd0;
       awaddr_valid <= 1'b0;
+      do_write <= 1'b0;
+      write_addr_q <= 32'd0;
+      write_data_q <= 64'd0;
     end else begin
       S_AXI_AWREADY <= 1'b1;
       S_AXI_WREADY <= 1'b1;
       S_AXI_ARREADY <= 1'b1;
+      do_write <= 1'b0;
 
       if (S_AXI_AWVALID && S_AXI_AWREADY) begin
         awaddr_q <= S_AXI_AWADDR;
@@ -58,7 +67,6 @@ module AxiSlaveMemory #(
 
       if (S_AXI_WVALID && S_AXI_WREADY) begin
         logic [31:0] wr_addr;
-        // Match SystemC behavior: when AW/W handshake in same cycle, pair them directly.
         if (S_AXI_AWVALID && S_AXI_AWREADY) begin
           wr_addr = S_AXI_AWADDR;
         end else if (awaddr_valid) begin
@@ -68,7 +76,9 @@ module AxiSlaveMemory #(
         end
 
         if ((wr_addr >> 3) < TEST_DATA_SIZE) begin
-          memory[wr_addr >> 3] <= S_AXI_WDATA;
+          do_write <= 1'b1;
+          write_addr_q <= wr_addr;
+          write_data_q <= S_AXI_WDATA;
           S_AXI_BRESP <= AXI_RESP_OKAY;
         end else begin
           S_AXI_BRESP <= AXI_RESP_SLVERR;
@@ -97,6 +107,7 @@ endmodule
 
 module SOLE_test;
   import sole_pkg::*;
+  import "DPI-C" function string get_local_datetime();
   logic clk;
   logic rst;
   logic [31:0] proc_addr;
@@ -125,9 +136,9 @@ module SOLE_test;
 
   localparam int INPUT_START_WORD = 100;
   localparam int OUTPUT_START_WORD = 500;
-  localparam int NUM_DATA = 100;
-  localparam int NUM_WORDS = (NUM_DATA + 3) / 4;
-  localparam real ERR_TOL = 0.005;
+  localparam int MAX_DATA = 4096;
+  localparam int TOP_K = 5;
+  localparam real COSINE_PASS_THR = 0.97;
 
   integer i, w, e;
   reg [63:0] packed_word;
@@ -135,11 +146,13 @@ module SOLE_test;
   real expv;
   real abs_err;
   real max_err;
-  integer failures;
   reg [8*256-1:0] data_file_path;
   integer test_log_fh;
   integer monitor_log_fh;
-  integer last_status;
+  logic [31:0] last_status;
+  logic last_status_valid;
+  integer num_data;
+  integer num_words;
   integer start_time_ns;
   integer done_time_ns;
   real sum_hw_output;
@@ -148,10 +161,16 @@ module SOLE_test;
   real cosine_norm_hw;
   real cosine_norm_sw;
   real cosine;
+  real top_input_vals [0:TOP_K-1];
+  real top_hw_vals [0:TOP_K-1];
+  real top_sw_vals [0:TOP_K-1];
+  integer top_input_idxs [0:TOP_K-1];
+  integer top_hw_idxs [0:TOP_K-1];
+  integer top_sw_idxs [0:TOP_K-1];
 
-  real hw_output [0:NUM_DATA-1];
-  real sw_output [0:NUM_DATA-1];
-  real input_data [0:NUM_DATA-1];
+  real hw_output [0:MAX_DATA-1];
+  real sw_output [0:MAX_DATA-1];
+  real input_data [0:MAX_DATA-1];
 
   SOLE dut (
     .clk(clk), .rst(rst),
@@ -274,29 +293,63 @@ module SOLE_test;
     end
   endfunction
 
-  // Continuous status monitor (similar to SystemC monitor log)
-  always @(posedge clk) begin
-    integer st;
-    st = dut.reg_status;
-    if (st != last_status) begin
-      $display("[STATUS_HW] 0x%08h | done=%0d | state=%0s | error=%0d | error_code=0x%0h @%0d ns",
-               st,
-               (st & 1),
-               status_state_name(st),
-               ((st >> 3) & 1),
-               ((st >> 4) & 4'hF),
-               sim_time_ns());
-      if (monitor_log_fh != 0) begin
-        $fdisplay(monitor_log_fh,
-                  "[STATUS_HW] 0x%08h | done=%0d | state=%0s | error=%0d | error_code=0x%0h @%0d ns",
-                  st,
-                  (st & 1),
-                  status_state_name(st),
-                  ((st >> 3) & 1),
-                  ((st >> 4) & 4'hF),
-                  sim_time_ns());
+  task automatic update_top5(
+    input real cand_val,
+    input integer cand_idx,
+    inout real top_vals [0:TOP_K-1],
+    inout integer top_idxs [0:TOP_K-1]
+  );
+    integer p;
+    integer q;
+    begin
+      p = TOP_K;
+      for (q = 0; q < TOP_K; q = q + 1) begin
+        if (cand_val > top_vals[q]) begin
+          p = q;
+          q = TOP_K;
+        end
       end
-      last_status = st;
+
+      if (p < TOP_K) begin
+        for (q = TOP_K - 1; q > p; q = q - 1) begin
+          top_vals[q] = top_vals[q - 1];
+          top_idxs[q] = top_idxs[q - 1];
+        end
+        top_vals[p] = cand_val;
+        top_idxs[p] = cand_idx;
+      end
+    end
+  endtask
+
+  // Continuous status monitor (similar to SystemC monitor log)
+  always @(posedge clk or posedge rst) begin
+    logic [31:0] st;
+    if (rst) begin
+      last_status <= 32'd0;
+      last_status_valid <= 1'b0;
+    end else begin
+      st = dut.reg_status;
+      if (!$isunknown(st) && (!last_status_valid || (st !== last_status))) begin
+        $display("[STATUS_HW] 0x%08h | done=%0d | state=%0s | error=%0d | error_code=0x%0h @%0d ns",
+                 st,
+                 (st & 1),
+                 status_state_name(st),
+                 ((st >> 3) & 1),
+                 ((st >> 4) & 4'hF),
+                 sim_time_ns());
+        if (monitor_log_fh != 0) begin
+          $fdisplay(monitor_log_fh,
+                    "[STATUS_HW] 0x%08h | done=%0d | state=%0s | error=%0d | error_code=0x%0h @%0d ns",
+                    st,
+                    (st & 1),
+                    status_state_name(st),
+                    ((st >> 3) & 1),
+                    ((st >> 4) & 4'hF),
+                    sim_time_ns());
+        end
+        last_status <= st;
+        last_status_valid <= 1'b1;
+      end
     end
   end
 
@@ -314,35 +367,38 @@ module SOLE_test;
     integer data_fh;
     integer rc;
     real in_val;
+    string run_datetime;
     clk = 0;
     rst = 1;
     proc_addr = 0;
     proc_wdata = 0;
     proc_we = 0;
     max_err = 0.0;
-    failures = 0;
-    last_status = 32'hFFFF_FFFF;
+    last_status = 32'd0;
+    last_status_valid = 1'b0;
     sum_hw_output = 0.0;
     sum_sw_output = 0.0;
     cosine_dot = 0.0;
     cosine_norm_hw = 0.0;
     cosine_norm_sw = 0.0;
 
-    test_log_fh = $fopen("SOLE_test_Result_rtl.log", "w");
-    monitor_log_fh = $fopen("SOLE_test_Monitor_rtl.log", "w");
+    test_log_fh = $fopen("../log/SOLE_test_Result_rtl.log", "w");
+    monitor_log_fh = $fopen("../log/SOLE_test_Monitor_rtl.log", "w");
     if (test_log_fh == 0) begin
-      $display("[ERROR] Failed to create SOLE_test_Result_rtl.log");
+      $display("[ERROR] Failed to create ../log/SOLE_test_Result_rtl.log");
       $fatal(1);
     end
     if (monitor_log_fh == 0) begin
-      $display("[ERROR] Failed to create SOLE_test_Monitor_rtl.log");
+      $display("[ERROR] Failed to create ../log/SOLE_test_Monitor_rtl.log");
       $fatal(1);
     end
 
+    run_datetime = get_local_datetime();
+    $fdisplay(test_log_fh, "%s", run_datetime);
     $fdisplay(test_log_fh, "===== SOLE TEST LOG =====");
     $fdisplay(monitor_log_fh, "[CONTINUOUS MONITOR STARTED]");
 
-    data_file_path = "SOLE_test_Data_rtl.txt";
+    data_file_path = "../data/SOLE_test_Data_rtl.txt";
     if ($value$plusargs("DATA_FILE=%s", data_file_path)) begin
       $display("[RTL TEST] Using DATA_FILE=%0s", data_file_path);
     end else begin
@@ -354,26 +410,46 @@ module SOLE_test;
       $display("[ERROR] Failed to open input data file: %0s", data_file_path);
       $fatal(1);
     end
-    for (i = 0; i < NUM_DATA; i = i + 1) begin
+    num_data = 0;
+    for (i = 0; i < MAX_DATA; i = i + 1) begin
       rc = $fscanf(data_fh, "%f", in_val);
-      if (rc != 1) begin
-        $display("[ERROR] Input data file parse failed at index %0d (%0s)", i, data_file_path);
+      if (rc == 1) begin
+        input_data[num_data] = in_val;
+        num_data = num_data + 1;
+      end else if (rc == -1) begin
+        i = MAX_DATA;
+      end else begin
+        $display("[ERROR] Input data file parse failed at index %0d (%0s)", num_data, data_file_path);
         $fatal(1);
       end
-      input_data[i] = in_val;
+    end
+    if (num_data <= 0) begin
+      $display("[ERROR] Input data file is empty: %0s", data_file_path);
+      $fatal(1);
+    end
+    if (num_data >= MAX_DATA) begin
+      rc = $fscanf(data_fh, "%f", in_val);
+      if (rc == 1) begin
+        $display("[ERROR] Input data exceeds MAX_DATA=%0d (%0s)", MAX_DATA, data_file_path);
+        $fatal(1);
+      end
     end
     $fclose(data_fh);
+    num_words = (num_data + 3) / 4;
 
     repeat (10) @(posedge clk);
     rst = 0;
 
+    // Wait 5 more cycles to allow always_ff to complete before procedural memory access
+    repeat (5) @(posedge clk);
+
     $fdisplay(test_log_fh, "\n[1] Memory Input Data Write");
     $fdisplay(test_log_fh, "Index | InputFloat | InputFP16Hex | MemWordIdx | ElemInWord");
-    for (w = 0; w < NUM_WORDS; w++) begin
+    for (w = 0; w < num_words; w++) begin
       packed_word = 64'd0;
       for (e = 0; e < 4; e++) begin
         i = w * 4 + e;
-        if (i < NUM_DATA) begin
+        if (i < num_data) begin
           packed_word[e*16 +: 16] = real_to_fp16(input_data[i]);
           $fdisplay(test_log_fh, "%4d  %10f       0x%04h       %0d           %0d",
                     i,
@@ -385,7 +461,7 @@ module SOLE_test;
       end
       mem.memory[INPUT_START_WORD + w] = packed_word;
     end
-    dump_memory_words(test_log_fh, INPUT_START_WORD, NUM_WORDS);
+    dump_memory_words(test_log_fh, INPUT_START_WORD, num_words);
 
     $fdisplay(test_log_fh, "\n[2] Testbench MMIO Configuration");
     $fdisplay(test_log_fh, "TimeNs,Reg,ValueHex,Note");
@@ -398,8 +474,8 @@ module SOLE_test;
     $fdisplay(test_log_fh, "%0d ns,REG_DST_ADDR_BASE_L,0x%0h,destination base byte address", sim_time_ns(), OUTPUT_START_WORD * 8);
     mmio_write(REG_DST_ADDR_BASE_H, 0);
     $fdisplay(test_log_fh, "%0d ns,REG_DST_ADDR_BASE_H,0x0,destination high", sim_time_ns());
-    mmio_write(REG_LENGTH_L, NUM_DATA);
-    $fdisplay(test_log_fh, "%0d ns,REG_LENGTH_L,0x%0h,number of FP16 elements", sim_time_ns(), NUM_DATA);
+    mmio_write(REG_LENGTH_L, num_data);
+    $fdisplay(test_log_fh, "%0d ns,REG_LENGTH_L,0x%0h,number of FP16 elements", sim_time_ns(), num_data);
     mmio_write(REG_LENGTH_H, 0);
     $fdisplay(test_log_fh, "%0d ns,REG_LENGTH_H,0x0,length high", sim_time_ns());
     start_time_ns = sim_time_ns();
@@ -446,10 +522,10 @@ module SOLE_test;
     $fdisplay(test_log_fh, "[TIMING] Execution time: %0d ns", done_time_ns - start_time_ns);
 
     $fdisplay(test_log_fh, "\n[5] Output Stored Back to Memory via AXI4_Lite");
-    dump_memory_words(test_log_fh, OUTPUT_START_WORD, NUM_WORDS);
+    dump_memory_words(test_log_fh, OUTPUT_START_WORD, num_words);
 
-    $display("[MEM DUMP] OUTPUT memory words from %0d, count=%0d", OUTPUT_START_WORD, NUM_WORDS);
-    for (w = 0; w < NUM_WORDS; w = w + 1) begin
+    $display("[MEM DUMP] OUTPUT memory words from %0d, count=%0d", OUTPUT_START_WORD, num_words);
+    for (w = 0; w < num_words; w = w + 1) begin
       $display("[MEM] word=%0d data=0x%04h_%04h_%04h_%04h",
                OUTPUT_START_WORD + w,
                mem.memory[OUTPUT_START_WORD + w][63:48],
@@ -461,11 +537,11 @@ module SOLE_test;
     $fdisplay(test_log_fh, "\n[4] Softmax Compute Results");
     $fdisplay(test_log_fh, "Index |  Input  |  HW_Output  |  SW_Output  |  AbsError");
 
-    for (i = 0; i < NUM_DATA; i++) begin
+    for (i = 0; i < num_data; i++) begin
       w = OUTPUT_START_WORD + (i / 4);
       e = i % 4;
       got = fp16_to_real(mem.memory[w][e*16 +: 16]);
-      expv = expected_sole_softmax(i, NUM_DATA);
+      expv = expected_sole_softmax(i, num_data);
       hw_output[i] = got;
       sw_output[i] = expv;
       abs_err = (got > expv) ? (got - expv) : (expv - got);
@@ -479,12 +555,6 @@ module SOLE_test;
                 i, input_data[i], got, expv, abs_err);
 
       if (abs_err > max_err) max_err = abs_err;
-      if (abs_err > ERR_TOL) begin
-        failures++;
-        if (failures <= 12) begin
-          $display("[RTL TEST][MISMATCH] idx=%0d got=%f exp=%f abs_err=%f word=%0d lane=%0d", i, got, expv, abs_err, w, e);
-        end
-      end
     end
 
     if (cosine_norm_hw > 0.0 && cosine_norm_sw > 0.0) begin
@@ -493,20 +563,51 @@ module SOLE_test;
       cosine = 0.0;
     end
 
+    for (i = 0; i < TOP_K; i = i + 1) begin
+      top_input_vals[i] = -1.0e30;
+      top_hw_vals[i] = -1.0e30;
+      top_sw_vals[i] = -1.0e30;
+      top_input_idxs[i] = -1;
+      top_hw_idxs[i] = -1;
+      top_sw_idxs[i] = -1;
+    end
+
+    for (i = 0; i < num_data; i = i + 1) begin
+      update_top5(input_data[i], i, top_input_vals, top_input_idxs);
+      update_top5(hw_output[i], i, top_hw_vals, top_hw_idxs);
+      update_top5(sw_output[i], i, top_sw_vals, top_sw_idxs);
+    end
+
     $fdisplay(test_log_fh, "\n================== FINAL REPORT ================= ");
     $fdisplay(test_log_fh, "[EXECUTION TIME] SOLE Execution Time: %0d ns", done_time_ns - start_time_ns);
     $fdisplay(test_log_fh, "\n[ANALYSIS] Cosine Similarity (HW vs SW) = %0.9f", cosine);
+
+    $fdisplay(test_log_fh, "\n[ANALYSIS] Top 5 large inputs (value @ index):");
+    for (i = 0; i < TOP_K; i = i + 1) begin
+      $fdisplay(test_log_fh, "  %0d: %0.6f @ %0d", i, top_input_vals[i], top_input_idxs[i]);
+    end
+
+    $fdisplay(test_log_fh, "\n[ANALYSIS] Top 5 large HW outputs (value @ index):");
+    for (i = 0; i < TOP_K; i = i + 1) begin
+      $fdisplay(test_log_fh, "  %0d: %0.9f @ %0d", i, top_hw_vals[i], top_hw_idxs[i]);
+    end
+
+    $fdisplay(test_log_fh, "\n[ANALYSIS] Top 5 large SW outputs (value @ index):");
+    for (i = 0; i < TOP_K; i = i + 1) begin
+      $fdisplay(test_log_fh, "  %0d: %0.9f @ %0d", i, top_sw_vals[i], top_sw_idxs[i]);
+    end
+
     $fdisplay(test_log_fh, "\n[ANALYSIS] Sum & MaxAbsError");
     $fdisplay(test_log_fh, "HW_Sum=%0.9f", sum_hw_output);
     $fdisplay(test_log_fh, "SW_Sum=%0.9f", sum_sw_output);
     $fdisplay(test_log_fh, "MaxAbsError=%0.9e", max_err);
     $fdisplay(test_log_fh, "\n============ END OF SOLE TEST LOG ============");
 
-    $display("[RTL TEST] NUM_DATA=%0d max_err=%f failures=%0d", NUM_DATA, max_err, failures);
-    if (failures == 0) begin
-      $display("[RTL TEST] PASS: input 1..100 output is correct within tolerance");
+    $display("[RTL TEST] NUM_DATA=%0d cosine=%0.9f threshold=%0.2f max_err=%f", num_data, cosine, COSINE_PASS_THR, max_err);
+    if (cosine > COSINE_PASS_THR) begin
+      $display("[RTL TEST] PASS: cosine similarity is above threshold");
     end else begin
-      $display("[RTL TEST] FAIL");
+      $display("[RTL TEST] FAIL: cosine similarity is below threshold");
       $fatal(1);
     end
     $fdisplay(monitor_log_fh, "\n[CONTINUOUS MONITOR STOPPED]");

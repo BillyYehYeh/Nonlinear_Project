@@ -117,3 +117,7 @@ checkpoints/
 build/
 CNN_EXAMPLE/
 **/*.log
+
+# Local files
+.local/
+RTL/csrc/

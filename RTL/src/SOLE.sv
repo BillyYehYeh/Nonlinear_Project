@@ -1,4 +1,3 @@
-`include "sole_pkg.sv"
 module SOLE (
   input  logic                           clk,
   input  logic                           rst,
@@ -7,25 +6,40 @@ module SOLE (
   input  logic                           proc_we,
   output logic [31:0]                    proc_rdata,
   output logic                           interrupt,
-  output logic [sole_pkg::AXI_ADDR_WIDTH-1:0] M_AXI_AWADDR,
+  output logic [31:0]                    M_AXI_AWADDR,
   output logic                           M_AXI_AWVALID,
   input  logic                           M_AXI_AWREADY,
-  output logic [sole_pkg::AXI_DATA_WIDTH-1:0] M_AXI_WDATA,
-  output logic [sole_pkg::AXI_STRB_WIDTH-1:0] M_AXI_WSTRB,
+  output logic [63:0]                    M_AXI_WDATA,
+  output logic [7:0]                     M_AXI_WSTRB,
   output logic                           M_AXI_WVALID,
   input  logic                           M_AXI_WREADY,
   input  logic [1:0]                     M_AXI_BRESP,
   input  logic                           M_AXI_BVALID,
   output logic                           M_AXI_BREADY,
-  output logic [sole_pkg::AXI_ADDR_WIDTH-1:0] M_AXI_ARADDR,
+  output logic [31:0]                    M_AXI_ARADDR,
   output logic                           M_AXI_ARVALID,
   input  logic                           M_AXI_ARREADY,
-  input  logic [sole_pkg::AXI_DATA_WIDTH-1:0] M_AXI_RDATA,
+  input  logic [63:0]                    M_AXI_RDATA,
   input  logic [1:0]                     M_AXI_RRESP,
   input  logic                           M_AXI_RVALID,
   output logic                           M_AXI_RREADY
 );
-  import sole_pkg::*;
+  // Local parameter definitions (from sole_pkg)
+  localparam int AXI_ADDR_WIDTH = 32;
+  localparam int AXI_DATA_WIDTH = 64;
+  localparam int AXI_STRB_WIDTH = 8;
+  
+  localparam logic [7:0] REG_CONTROL         = 8'h00;
+  localparam logic [7:0] REG_STATUS          = 8'h04;
+  localparam logic [7:0] REG_SRC_ADDR_BASE_L = 8'h08;
+  localparam logic [7:0] REG_SRC_ADDR_BASE_H = 8'h0C;
+  localparam logic [7:0] REG_DST_ADDR_BASE_L = 8'h10;
+  localparam logic [7:0] REG_DST_ADDR_BASE_H = 8'h14;
+  localparam logic [7:0] REG_LENGTH_L        = 8'h18;
+  localparam logic [7:0] REG_LENGTH_H        = 8'h1C;
+
+  localparam int CTRL_START_BIT = 0;
+  localparam int CTRL_MODE_BIT = 31;
 
   logic [31:0] reg_control;
   logic [31:0] reg_status;
@@ -94,6 +108,9 @@ module SOLE (
         REG_LENGTH_H: reg_length_h <= proc_wdata;
         default: ;
       endcase
+    end else if (softmax_start && (softmax_status[2:1] != 2'b00)) begin
+      // Match SystemC SOLE pulse behavior: clear START once engine begins running.
+      reg_control[CTRL_START_BIT] <= 1'b0;
     end
   end
 

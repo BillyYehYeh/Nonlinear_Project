@@ -16,7 +16,7 @@ module PROCESS_2_Module (
     .Mux_Result(mr)
   );
 
-  always_ff @(posedge clk) begin
+  always_latch begin
     if (rst) begin
       Leading_One_Pos_Out <= 4'd0;
       Mux_Result_Out <= 16'd0;
