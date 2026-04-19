@@ -1,11 +1,14 @@
 `timescale 1ns/1ps
 `include "sole_pkg.sv"
 
+// clock period in ns 
+`define TB_CLK_PERIOD_NS 1
+
 module AxiSlaveMemory #(
   parameter int TEST_DATA_SIZE = 4096
 ) (
   input  logic        clk,
-  input  logic        rst,
+  input  logic        rst_n,
   input  logic [31:0] S_AXI_AWADDR,
   input  logic        S_AXI_AWVALID,
   output logic        S_AXI_AWREADY,
@@ -39,8 +42,8 @@ module AxiSlaveMemory #(
     end
   end
 
-  always_ff @(posedge clk) begin
-    if (rst) begin
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
       S_AXI_AWREADY <= 1'b0;
       S_AXI_WREADY <= 1'b0;
       S_AXI_BVALID <= 1'b0;
@@ -106,6 +109,8 @@ module AxiSlaveMemory #(
 endmodule
 
 module SOLE_test;
+  localparam realtime CLK_PERIOD_NS = `TB_CLK_PERIOD_NS;
+  localparam realtime CLK_HALF_PERIOD_NS = CLK_PERIOD_NS / 2.0;
   import sole_pkg::*;
   import "DPI-C" function string get_local_datetime();
   logic clk;
@@ -135,7 +140,7 @@ module SOLE_test;
   logic M_AXI_RREADY;
 
   localparam int INPUT_START_WORD = 100;
-  localparam int OUTPUT_START_WORD = 500;
+  localparam int OUTPUT_START_WORD = 2000;
   localparam int MAX_DATA = 4096;
   localparam int TOP_K = 5;
   localparam real COSINE_PASS_THR = 0.97;
@@ -147,10 +152,13 @@ module SOLE_test;
   real abs_err;
   real max_err;
   reg [8*256-1:0] data_file_path;
+  reg [8*256-1:0] result_log_path;
+  reg [8*256-1:0] monitor_log_path;
   integer test_log_fh;
   integer monitor_log_fh;
   logic [31:0] last_status;
   logic last_status_valid;
+  logic interrupt_seen;
   integer num_data;
   integer num_words;
   integer start_time_ns;
@@ -173,7 +181,7 @@ module SOLE_test;
   real input_data [0:MAX_DATA-1];
 
   SOLE dut (
-    .clk(clk), .rst(rst),
+    .clk(clk), .rst_n(!rst),
     .proc_addr(proc_addr), .proc_wdata(proc_wdata), .proc_we(proc_we), .proc_rdata(proc_rdata), .interrupt(interrupt),
     .M_AXI_AWADDR(M_AXI_AWADDR), .M_AXI_AWVALID(M_AXI_AWVALID), .M_AXI_AWREADY(M_AXI_AWREADY),
     .M_AXI_WDATA(M_AXI_WDATA), .M_AXI_WSTRB(M_AXI_WSTRB), .M_AXI_WVALID(M_AXI_WVALID), .M_AXI_WREADY(M_AXI_WREADY),
@@ -183,7 +191,7 @@ module SOLE_test;
   );
 
   AxiSlaveMemory mem (
-    .clk(clk), .rst(rst),
+    .clk(clk), .rst_n(!rst),
     .S_AXI_AWADDR(M_AXI_AWADDR), .S_AXI_AWVALID(M_AXI_AWVALID), .S_AXI_AWREADY(M_AXI_AWREADY),
     .S_AXI_WDATA(M_AXI_WDATA), .S_AXI_WSTRB(M_AXI_WSTRB), .S_AXI_WVALID(M_AXI_WVALID), .S_AXI_WREADY(M_AXI_WREADY),
     .S_AXI_BRESP(M_AXI_BRESP), .S_AXI_BVALID(M_AXI_BVALID), .S_AXI_BREADY(M_AXI_BREADY),
@@ -199,6 +207,39 @@ module SOLE_test;
       proc_we <= 1'b1;
       @(posedge clk);
       proc_we <= 1'b0;
+    end
+  endtask
+
+  task mmio_read(input logic [31:0] addr, output logic [31:0] data);
+    begin
+      @(posedge clk);
+      proc_addr <= addr;
+      proc_we <= 1'b0;
+      @(posedge clk);
+      data = proc_rdata;
+    end
+  endtask
+
+  task dump_sole_mmio_readback(input integer fh);
+    logic [31:0] v;
+    begin
+      $fdisplay(fh, "\n[SOLE MMIO READBACK]");
+      mmio_read(REG_CONTROL, v);
+      $fdisplay(fh, "Control Register(read): 0x%08h", v);
+      mmio_read(REG_STATUS, v);
+      $fdisplay(fh, "Status Register(read): 0x%08h", v);
+      mmio_read(REG_SRC_ADDR_BASE_L, v);
+      $fdisplay(fh, "Src Addr Base Low(read): 0x%08h", v);
+      mmio_read(REG_SRC_ADDR_BASE_H, v);
+      $fdisplay(fh, "Src Addr Base High(read): 0x%08h", v);
+      mmio_read(REG_DST_ADDR_BASE_L, v);
+      $fdisplay(fh, "Dst Addr Base Low(read): 0x%08h", v);
+      mmio_read(REG_DST_ADDR_BASE_H, v);
+      $fdisplay(fh, "Dst Addr Base High(read): 0x%08h", v);
+      mmio_read(REG_LENGTH_L, v);
+      $fdisplay(fh, "Data Length Low(read): 0x%08h", v);
+      mmio_read(REG_LENGTH_H, v);
+      $fdisplay(fh, "Data Length High(read): 0x%08h", v);
     end
   endtask
 
@@ -229,8 +270,13 @@ module SOLE_test;
     end
   endtask
 
+`ifndef POST_SIM
+`ifndef NO_SDF
   task dump_sole_mmio(input integer fh);
     begin
+`else
+  $display("[POST-SIM] NO_SDF enabled: skipping SDF annotation");
+`endif
       $fdisplay(fh, "\n[SOLE MMIO DUMP]");
       $fdisplay(fh, "Control Register: 0x%08h", dut.reg_control);
       $fdisplay(fh, "Status Register: 0x%08h", dut.reg_status);
@@ -245,6 +291,7 @@ module SOLE_test;
       $fdisplay(fh, "Data Length (64-bit): 0x%016h", {dut.reg_length_h, dut.reg_length_l});
     end
   endtask
+`endif
 
   function automatic real expected_sole_softmax(input int i, input int n);
     int m;
@@ -321,47 +368,23 @@ module SOLE_test;
     end
   endtask
 
-  // Continuous status monitor (similar to SystemC monitor log)
-  always @(posedge clk or posedge rst) begin
-    logic [31:0] st;
+  always_ff @(posedge clk or posedge rst) begin
     if (rst) begin
-      last_status <= 32'd0;
-      last_status_valid <= 1'b0;
-    end else begin
-      st = dut.reg_status;
-      if (!$isunknown(st) && (!last_status_valid || (st !== last_status))) begin
-        $display("[STATUS_HW] 0x%08h | done=%0d | state=%0s | error=%0d | error_code=0x%0h @%0d ns",
-                 st,
-                 (st & 1),
-                 status_state_name(st),
-                 ((st >> 3) & 1),
-                 ((st >> 4) & 4'hF),
-                 sim_time_ns());
-        if (monitor_log_fh != 0) begin
-          $fdisplay(monitor_log_fh,
-                    "[STATUS_HW] 0x%08h | done=%0d | state=%0s | error=%0d | error_code=0x%0h @%0d ns",
-                    st,
-                    (st & 1),
-                    status_state_name(st),
-                    ((st >> 3) & 1),
-                    ((st >> 4) & 4'hF),
-                    sim_time_ns());
-        end
-        last_status <= st;
-        last_status_valid <= 1'b1;
-      end
+      interrupt_seen <= 1'b0;
+    end else if (interrupt) begin
+      interrupt_seen <= 1'b1;
     end
   end
 
-  always @(posedge clk) begin
-    if (interrupt) begin
-      if (monitor_log_fh != 0) begin
-        $fdisplay(monitor_log_fh,
-                  "[INTERRUPT] interrupt=1 | done=%0d | error=%0d | status=0x%08h @%0d ns",
-                  dut.reg_status[0], dut.reg_status[3], dut.reg_status, sim_time_ns());
-      end
+  // Event-driven done-pulse monitor: interrupt is the 1-cycle done indicator.
+  always_ff @(posedge clk) begin
+    if (!rst && interrupt && (monitor_log_fh != 0)) begin
+      $fdisplay(monitor_log_fh,
+                "[DONE_PULSE] done=1 (interrupt pulse) @%0d ns",
+                sim_time_ns());
     end
   end
+
 
   initial begin
     integer data_fh;
@@ -382,16 +405,29 @@ module SOLE_test;
     cosine_norm_hw = 0.0;
     cosine_norm_sw = 0.0;
 
-    test_log_fh = $fopen("../log/SOLE_test_Result_rtl.log", "w");
-    monitor_log_fh = $fopen("../log/SOLE_test_Monitor_rtl.log", "w");
+`ifdef POST_SIM
+    result_log_path = "../log/SOLE_test_Result_post_sim.log";
+    monitor_log_path = "../log/SOLE_test_Monitor_post_sim.log";
+`else
+    result_log_path = "../log/SOLE_test_Result_pre_sim.log";
+    monitor_log_path = "../log/SOLE_test_Monitor_pre_sim.log";
+`endif
+
+    test_log_fh = $fopen(result_log_path, "w");
+    monitor_log_fh = $fopen(monitor_log_path, "w");
     if (test_log_fh == 0) begin
-      $display("[ERROR] Failed to create ../log/SOLE_test_Result_rtl.log");
+      $display("[ERROR] Failed to create %0s", result_log_path);
       $fatal(1);
     end
     if (monitor_log_fh == 0) begin
-      $display("[ERROR] Failed to create ../log/SOLE_test_Monitor_rtl.log");
+      $display("[ERROR] Failed to create %0s", monitor_log_path);
       $fatal(1);
     end
+
+`ifdef POST_SIM
+    $display("[POST-SIM] SDF annotation file: ../syn/SOLE_syn.sdf");
+    $sdf_annotate("../syn/SOLE_syn.sdf", dut);
+`endif
 
     run_datetime = get_local_datetime();
     $fdisplay(test_log_fh, "%s", run_datetime);
@@ -483,34 +519,89 @@ module SOLE_test;
     $fdisplay(test_log_fh, "%0d ns,REG_CONTROL,0x1,mode=softmax start=1", sim_time_ns());
     mmio_write(REG_CONTROL, 32'h0000_0000);
 
+  `ifndef POST_SIM
     dump_sole_mmio(test_log_fh);
+  `else
+    dump_sole_mmio_readback(test_log_fh);
+  `endif
 
     $fdisplay(test_log_fh, "\n[3] Softmax Start Running");
     $fdisplay(test_log_fh, "TimeNs,Status,State,Done,ErrorCode");
-    $fdisplay(test_log_fh, "\n[Stage 1: Waiting for PROCESS1 state]");
-    while (((dut.reg_status >> 1) & 3) != 1) @(posedge clk);
-    $fdisplay(test_log_fh, "time: %0d ns Event: Entered PROCESS1", sim_time_ns());
+    $fdisplay(test_log_fh, "\n[Stage 1~4: Poll REG_STATUS until DONE]");
 
-    $fdisplay(test_log_fh, "\n[Stage 2: Waiting for PROCESS2 state]");
-    while (((dut.reg_status >> 1) & 3) != 2) @(posedge clk);
-    $fdisplay(test_log_fh, "time: %0d ns Event: Entered PROCESS2", sim_time_ns());
+    begin
+      logic [31:0] st;
+      bit seen_p1;
+      bit seen_p2;
+      bit seen_p3;
+      bit done_seen;
 
-    $fdisplay(test_log_fh, "\n[Stage 3: Waiting for PROCESS3 state]");
-    while (((dut.reg_status >> 1) & 3) != 3) @(posedge clk);
-    $fdisplay(test_log_fh, "time: %0d ns Event: Entered PROCESS3", sim_time_ns());
+      seen_p1 = 1'b0;
+      seen_p2 = 1'b0;
+      seen_p3 = 1'b0;
+      done_seen = 1'b0;
 
-    $fdisplay(test_log_fh, "\n[Stage 4: Waiting for softmax_done]");
-    $fdisplay(test_log_fh, "Stage 4a baseline status: 0x%08h @%0d ns", dut.reg_status, sim_time_ns());
-    $fdisplay(test_log_fh, "Stage 4b: Entering tight polling loop (direct HW register read)...");
+      for (i = 0; i < 20000; i = i + 1) begin
+        mmio_read(REG_STATUS, st);
 
-    for (i = 0; i < 20000; i = i + 1) begin
-      @(posedge clk);
-      if (interrupt === 1'b1) begin
-        done_time_ns = sim_time_ns();
-        i = 20000;
+        if (!$isunknown(st) && (!last_status_valid || (st !== last_status))) begin
+          $display("[STATUS_HW] 0x%08h | done=%0d | state=%0s | error=%0d | error_code=0x%0h @%0d ns",
+                   st,
+                   (st & 1),
+                   status_state_name(st),
+                   ((st >> 3) & 1),
+                   ((st >> 4) & 4'hF),
+                   sim_time_ns());
+          if (monitor_log_fh != 0) begin
+            $fdisplay(monitor_log_fh,
+                      "[STATUS_HW] 0x%08h | done=%0d | state=%0s | error=%0d | error_code=0x%0h @%0d ns",
+                      st,
+                      (st & 1),
+                      status_state_name(st),
+                      ((st >> 3) & 1),
+                      ((st >> 4) & 4'hF),
+                      sim_time_ns());
+          end
+          last_status = st;
+          last_status_valid = 1'b1;
+        end
+
+        if (!seen_p1 && (((st >> 1) & 2'b11) == 2'd1)) begin
+          seen_p1 = 1'b1;
+          $fdisplay(test_log_fh, "time: %0d ns Event: Entered PROCESS1", sim_time_ns());
+        end
+        if (!seen_p2 && (((st >> 1) & 2'b11) == 2'd2)) begin
+          seen_p2 = 1'b1;
+          $fdisplay(test_log_fh, "time: %0d ns Event: Entered PROCESS2", sim_time_ns());
+        end
+        if (!seen_p3 && (((st >> 1) & 2'b11) == 2'd3)) begin
+          seen_p3 = 1'b1;
+          $fdisplay(test_log_fh, "time: %0d ns Event: Entered PROCESS3", sim_time_ns());
+        end
+
+        if ((st & 32'h1) != 0 || interrupt_seen || (interrupt === 1'b1)) begin
+          done_time_ns = sim_time_ns();
+          done_seen = 1'b1;
+          if (monitor_log_fh != 0) begin
+            $fdisplay(monitor_log_fh,
+                      "[INTERRUPT] interrupt=%0d | done=%0d | error=%0d | status=0x%08h @%0d ns",
+                      interrupt_seen || (interrupt === 1'b1),
+                      (st & 1),
+                      ((st >> 3) & 1),
+                      st,
+                      sim_time_ns());
+          end
+          i = 20000;
+        end
+      end
+
+      if (!done_seen) begin
+        $display("[RTL TEST] FAIL: timeout waiting for interrupt/done");
+        $fatal(1);
       end
     end
-    if (interrupt !== 1'b1) begin
+
+    if (!interrupt_seen) begin
       $display("[RTL TEST] FAIL: timeout waiting for interrupt");
       $fatal(1);
     end
@@ -617,5 +708,5 @@ module SOLE_test;
   end
 
   // 0.5ns high/low => 1ns clock period (aligned with SystemC testbench)
-  always #0.5 clk = ~clk;
+  always #(CLK_HALF_PERIOD_NS) clk = ~clk;
 endmodule

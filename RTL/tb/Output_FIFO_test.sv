@@ -23,7 +23,7 @@ module Output_FIFO_test;
   bit verbose_log;
 
   Output_FIFO dut (
-    .clk(clk), .rst(rst),
+    .clk(clk), .rst_n(!rst),
     .data_in(data_in), .write_en(write_en),
     .read_ready(read_ready), .read_valid(read_valid),
     .clear(clear), .data_out(data_out),

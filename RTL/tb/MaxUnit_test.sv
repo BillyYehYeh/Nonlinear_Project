@@ -11,7 +11,7 @@ module MaxUnit_test;
 
   MaxUnit dut (
     .clk(clk),
-    .rst(rst),
+    .rst_n(!rst),
     .A(A), .B(B), .C(C), .D(D),
     .Max_Out(Max_Out)
   );

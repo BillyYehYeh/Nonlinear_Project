@@ -1,6 +1,6 @@
 module Softmax (
   input  logic        clk,
-  input  logic        rst,
+  input  logic        rst_n,
   input  logic        start,
   input  logic [63:0] src_addr_base,
   input  logic [63:0] dst_addr_base,
@@ -126,7 +126,7 @@ module Softmax (
   // ---------------- Submodule instantiation ----------------
   PROCESS_1_Module u_p1 (
     .clk(clk),
-    .rst(rst),
+    .rst_n(rst_n),
     .enable(process_1_enable),
     .DataIn_64bits(M_AXI_RDATA),
     .Global_Max(global_max_for_p1_d1_reg),
@@ -141,7 +141,7 @@ module Softmax (
 
   PROCESS_2_Module u_p2 (
     .clk(clk),
-    .rst(rst),
+    .rst_n(rst_n),
     .enable(process_2_enable),
     .stall_output(stall_process2_output_Signal),
     .Pre_Compute_In(sum_buffer_reg),
@@ -151,7 +151,7 @@ module Softmax (
 
   PROCESS_3_Module u_p3 (
     .clk(clk),
-    .rst(rst),
+    .rst_n(rst_n),
     .enable(process_3_enable),
     .stall(process3_stall),
     .input_data_valid(process3_read_data_valid),
@@ -167,7 +167,7 @@ module Softmax (
 
   Max_FIFO u_max_fifo (
     .clk(clk),
-    .rst(rst),
+    .rst_n(rst_n),
     .data_in(Global_Max_Buffer_In),
     .write_en(max_fifo_write_en),
     .data_out(Local_Max_Signal),
@@ -181,7 +181,7 @@ module Softmax (
 
   Output_FIFO u_output_fifo (
     .clk(clk),
-    .rst(rst),
+    .rst_n(rst_n),
     .data_in(Power_of_Two_Vector_Signal),
     .write_en(output_fifo_write_en),
     .read_ready(output_fifo_read_en),
@@ -210,14 +210,14 @@ module Softmax (
     process3_read_data_valid = max_fifo_read_data_valid;
 
     // FIFO controls (SystemC manage_fifo_control)
-    max_fifo_write_en = (state == STATE_PROCESS1) && !rst && !has_error && process1_stage1_valid;
-    output_fifo_write_en = (state == STATE_PROCESS1) && !rst && !has_error && process1_stage5_valid;
+    max_fifo_write_en = (state == STATE_PROCESS1) && !has_error && process1_stage1_valid;
+    output_fifo_write_en = (state == STATE_PROCESS1) && !has_error && process1_stage5_valid;
 
-    max_fifo_read_en = (state == STATE_PROCESS3) && !rst && !has_error && !process3_stall;
-    output_fifo_read_en = (state == STATE_PROCESS3) && !rst && !has_error && !process3_stall && process3_stage2_valid;
+    max_fifo_read_en = (state == STATE_PROCESS3) && !has_error && !process3_stall;
+    output_fifo_read_en = (state == STATE_PROCESS3) && !has_error && !process3_stall && process3_stage2_valid;
 
-    max_fifo_clear = rst || has_error;
-    output_fifo_clear = rst || has_error;
+    max_fifo_clear = has_error;
+    output_fifo_clear = has_error;
 
     // Transition flags (SystemC state_transition_flag)
     process1_finish_flag = (state == STATE_PROCESS1)
@@ -242,8 +242,8 @@ module Softmax (
   end
 
   // ---------------- FSM + process2 timing ----------------
-  always_ff @(posedge clk) begin
-    if (rst) begin
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
       state <= STATE_IDLE;
       done_pulse <= 1'b0;
       has_error <= 1'b0;
@@ -310,8 +310,8 @@ module Softmax (
   end
 
   // ---------------- Buffer update parity with SystemC ----------------
-  always_ff @(posedge clk) begin
-    if (rst) begin
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
       global_max_reg <= 16'd0;
       global_max_for_p1_d1_reg <= 16'd0;
       global_max_for_p1_d2_reg <= 16'd0;
@@ -332,8 +332,14 @@ module Softmax (
   end
 
   // ---------------- AXI read process parity ----------------
-  always_ff @(posedge clk) begin
-    if (rst || (state != STATE_PROCESS1)) begin
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n ) begin
+      M_AXI_ARADDR <= 32'd0;
+      M_AXI_ARVALID <= 1'b0;
+      M_AXI_RREADY <= 1'b0;
+      read_addr_sent_num <= 32'd0;
+      read_data_received_num <= 32'd0;
+    end else if (state != STATE_PROCESS1) begin 
       M_AXI_ARADDR <= 32'd0;
       M_AXI_ARVALID <= 1'b0;
       M_AXI_RREADY <= 1'b0;
@@ -385,8 +391,12 @@ module Softmax (
   end
 
   // ---------------- AXI write counter update parity ----------------
-  always_ff @(posedge clk) begin
-    if (rst || (state != STATE_PROCESS3)) begin
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+      write_addr_sent_num <= 32'd0;
+      write_data_sent_num <= 32'd0;
+      write_response_received_num <= 32'd0;
+    end else if (state != STATE_PROCESS3) begin 
       write_addr_sent_num <= 32'd0;
       write_data_sent_num <= 32'd0;
       write_response_received_num <= 32'd0;

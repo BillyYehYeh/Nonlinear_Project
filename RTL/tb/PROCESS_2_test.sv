@@ -14,7 +14,7 @@ module PROCESS_2_test;
 
   PROCESS_2_Module dut (
     .clk(clk),
-    .rst(rst),
+    .rst_n(!rst),
     .enable(enable),
     .stall_output(stall_output),
     .Pre_Compute_In(Pre_Compute_In),

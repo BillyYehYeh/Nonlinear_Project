@@ -1,0 +1,31 @@
+ 
+****************************************
+Report : area
+Design : SOLE
+Version: W-2024.09-SP2
+Date   : Sun Apr 19 11:27:42 2026
+****************************************
+
+Library(s) Used:
+
+    N16ADFP_StdCellss0p72vm40c (File: /cad/process/ADFP/Executable_Package/Collaterals/IP/stdcell/N16ADFP_StdCell/NLDM/N16ADFP_StdCellss0p72vm40c.db)
+    N16ADFP_SRAM_ss0p72v0p72vm40c (File: /cad/process/ADFP/Executable_Package/Collaterals/IP/sram/N16ADFP_SRAM/NLDM/N16ADFP_SRAM_ss0p72v0p72vm40c_100a.db)
+
+Number of ports:                         5122
+Number of nets:                        145536
+Number of cells:                       140794
+Number of combinational cells:         104787
+Number of sequential cells:             35924
+Number of macros/black boxes:               4
+Number of buf/inv:                      11705
+Number of references:                      29
+
+Combinational area:              39814.417076
+Buf/Inv area:                     2399.103368
+Noncombinational area:           33519.537081
+Macro/Black Box area:            14814.291016
+Net Interconnect area:      undefined  (Wire load has zero net area)
+
+Total cell area:                 88148.245173
+Total area:                 undefined
+1

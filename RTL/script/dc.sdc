@@ -4,7 +4,7 @@
 # Setting Clock freq & some parameter
 #=====================================================================
 
-set clk_period 1.0
+set clk_period 1
 set input_max   [expr {double(round(1000*$clk_period * 0.6))/1000}]
 set input_min   [expr {double(round(1000*$clk_period * 0.0))/1000}]
 set output_max  [expr {double(round(1000*$clk_period * 0.1))/1000}]
@@ -15,8 +15,6 @@ set output_min  [expr {double(round(1000*$clk_period * 0.0))/1000}]
 # Setting Clock Constraints
 #=====================================================================
 create_clock -name clk  -period $clk_period [get_ports  clk]  
-create_clock -name clk2 -period 10.0 [get_ports clk2]
-set_clock_groups -asynchronous -group {clk} -group {clk2}
 set_dont_touch_network       [all_clocks]
 set_fix_hold                 [all_clocks]
 set_clock_uncertainty  0.02  [all_clocks]
@@ -32,12 +30,12 @@ set_clock_transition   0.1   [all_clocks]
 set_operating_conditions -min_library N16ADFP_StdCellff0p88v125c -min ff0p88v125c \
                          -max_library N16ADFP_StdCellss0p72vm40c -max ss0p72vm40c
                          
-set_driving_cell -library N16ADFP_StdCellss0p72vm40c -lib_cell BUFFD4BWP16P90LVT -pin {Z} [get_ports {clk clk2}]
-set_driving_cell -library N16ADFP_StdCellss0p72vm40c -lib_cell DFQD1BWP16P90LVT  -pin {Q} [remove_from_collection [all_inputs] [get_ports {clk clk2}]]
+set_driving_cell -library N16ADFP_StdCellss0p72vm40c -lib_cell BUFFD4BWP16P90LVT -pin {Z} [get_ports {clk}]
+set_driving_cell -library N16ADFP_StdCellss0p72vm40c -lib_cell DFQD1BWP16P90LVT  -pin {Q} [remove_from_collection [all_inputs] [get_ports {clk}]]
 #set_load [load_of "N16ADFP_StdCellss0p72vm40c/DFQD1BWP16P90LVT/D"] [all_outputs]
 
-set_input_delay  -clock clk  -max $input_max   [remove_from_collection [all_inputs] [get_ports {clk clk2}]]
-set_input_delay  -clock clk  -min $input_min   [remove_from_collection [all_inputs] [get_ports {clk clk2}]]
+set_input_delay  -clock clk  -max $input_max   [remove_from_collection [all_inputs] [get_ports {clk}]]
+set_input_delay  -clock clk  -min $input_min   [remove_from_collection [all_inputs] [get_ports {clk}]]
 
 set_output_delay -clock clk  -max $output_max [all_outputs]
 set_output_delay -clock clk  -min $output_min [all_outputs]

@@ -1,0 +1,104 @@
+Information: Updating design information... (UID-85)
+Warning: Design 'SOLE' contains 1 high-fanout nets. A fanout number of 1000 will be used for delay calculations involving these nets. (TIM-134)
+ 
+****************************************
+Report : timing
+        -path full
+        -delay max
+        -max_paths 1
+        -sort_by group
+Design : SOLE
+Version: W-2024.09-SP2
+Date   : Sun Apr 19 11:27:42 2026
+****************************************
+
+ # A fanout number of 1000 was used for high fanout net computations.
+
+Operating Conditions: ss0p72vm40c   Library: N16ADFP_StdCellss0p72vm40c
+Wire Load Model Mode: segmented
+
+  Startpoint: rst (input port clocked by clk)
+  Endpoint: u_softmax/u_output_fifo/u_sram/rdata_reg_reg_0_
+            (rising edge-triggered flip-flop clocked by clk)
+  Path Group: clk
+  Path Type: max
+
+  Des/Clust/Port     Wire Load Model       Library
+  ------------------------------------------------
+  SOLE               ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  Softmax            ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  Max_FIFO           ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  Output_FIFO        ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  SRAM_ADDR_BITS10_DATA_BITS16_0
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+
+  Point                                                   Incr       Path
+  --------------------------------------------------------------------------
+  clock clk (rise edge)                                 0.0000     0.0000
+  clock network delay (ideal)                           0.2000     0.2000
+  input external delay                                  0.7500     0.9500 f
+  rst (in)                                              0.0016     0.9516 f
+  U623/ZN (CKND1BWP16P90LVT)                            0.0086     0.9603 r
+  U618/ZN (INVD2BWP16P90LVT)                            0.0108     0.9710 f
+  u_softmax/rst (Softmax)                               0.0000     0.9710 f
+  u_softmax/U124/ZN (INVD1BWP16P90)                     0.0219     0.9929 r
+  u_softmax/U164/Z (AN3D1BWP16P90LVT)                   0.0247     1.0177 r
+  u_softmax/U560/Z (AN2D1BWP16P90LVT)                   0.0159     1.0336 r
+  u_softmax/u_output_fifo/read_ready (Output_FIFO)      0.0000     1.0336 r
+  u_softmax/u_output_fifo/U50/ZN (CKND1BWP16P90LVT)     0.0054     1.0390 f
+  u_softmax/u_output_fifo/U144/ZN (ND2D1BWP16P90LVT)    0.0066     1.0456 r
+  u_softmax/u_output_fifo/U145/ZN (IND4D1BWP16P90LVT)   0.0128     1.0585 f
+  u_softmax/u_output_fifo/U49/ZN (CKND1BWP16P90LVT)     0.0214     1.0799 r
+  u_softmax/u_output_fifo/u_sram/re (SRAM_ADDR_BITS10_DATA_BITS16_0)
+                                                        0.0000     1.0799 r
+  u_softmax/u_output_fifo/u_sram/U48906/Z (AN2D1BWP16P90LVT)
+                                                        0.0205     1.1003 r
+  u_softmax/u_output_fifo/u_sram/U5918/ZN (CKND1BWP16P90LVT)
+                                                        0.0102     1.1105 f
+  u_softmax/u_output_fifo/u_sram/U240/Z (AN2D1BWP16P90LVT)
+                                                        0.0594     1.1699 f
+  u_softmax/u_output_fifo/u_sram/U4889/Z (BUFFD1BWP16P90LVT)
+                                                        0.0284     1.1983 f
+  u_softmax/u_output_fifo/u_sram/U2226/Z (BUFFD1BWP16P90LVT)
+                                                        0.0299     1.2282 f
+  u_softmax/u_output_fifo/u_sram/U1826/Z (BUFFD1BWP16P90LVT)
+                                                        0.0439     1.2721 f
+  u_softmax/u_output_fifo/u_sram/U1417/Z (BUFFD1BWP16P90LVT)
+                                                        0.0429     1.3150 f
+  u_softmax/u_output_fifo/u_sram/U22547/ZN (AOI22D1BWP16P90LVT)
+                                                        0.0179     1.3329 r
+  u_softmax/u_output_fifo/u_sram/U6707/ZN (ND4D1BWP16P90LVT)
+                                                        0.0150     1.3479 f
+  u_softmax/u_output_fifo/u_sram/U22546/ZN (AOI222D1BWP16P90LVT)
+                                                        0.0206     1.3685 r
+  u_softmax/u_output_fifo/u_sram/U22542/Z (AN4D1BWP16P90LVT)
+                                                        0.0210     1.3895 r
+  u_softmax/u_output_fifo/u_sram/U22541/ZN (OAI22D1BWP16P90LVT)
+                                                        0.0099     1.3995 f
+  u_softmax/u_output_fifo/u_sram/U22540/ZN (NR4D1BWP16P90LVT)
+                                                        0.0157     1.4152 r
+  u_softmax/u_output_fifo/u_sram/U22539/ZN (OAI21D1BWP16P90LVT)
+                                                        0.0094     1.4245 f
+  u_softmax/u_output_fifo/u_sram/U48912/ZN (AOI222D1BWP16P90LVT)
+                                                        0.0158     1.4403 r
+  u_softmax/u_output_fifo/u_sram/U48913/ZN (ND2D1BWP16P90LVT)
+                                                        0.0100     1.4503 f
+  u_softmax/u_output_fifo/u_sram/rdata_reg_reg_0_/D (DFQD2BWP16P90LVT)
+                                                        0.0000     1.4503 f
+  data arrival time                                                1.4503
+
+  clock clk (rise edge)                                 1.2500     1.2500
+  clock network delay (ideal)                           0.2000     1.4500
+  clock uncertainty                                    -0.0200     1.4300
+  u_softmax/u_output_fifo/u_sram/rdata_reg_reg_0_/CP (DFQD2BWP16P90LVT)
+                                                        0.0000     1.4300 r
+  library setup time                                    0.0203     1.4503
+  data required time                                               1.4503
+  --------------------------------------------------------------------------
+  data required time                                               1.4503
+  data arrival time                                               -1.4503
+  --------------------------------------------------------------------------
+  slack (MET)                                                      0.0000
+
+
+1

@@ -11,7 +11,7 @@ module Reduction_test;
 
   Reduction_Module dut (
     .clk(clk),
-    .rst(rst),
+    .rst_n(!rst),
     .Input_Vector(Input_Vector),
     .Output_Sum(Output_Sum)
   );

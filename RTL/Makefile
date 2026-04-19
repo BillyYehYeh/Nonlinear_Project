@@ -9,6 +9,7 @@ SCRIPT_DIR := ./script
 BUILD_DIR := ./build
 SYN_DIR := ./syn
 REPORTS_DIR := ./syn_reports
+LOG_DIR := ./log
 
 # Tool paths
 VCS ?= vcs
@@ -19,6 +20,12 @@ export SNPSLMD_LICENSE_FILE
 # VCS variables
 VCS_OPTS := -R -sverilog -debug_access+all -full64
 VCS_INCDIR := +incdir+$(ROOT_DIR)/$(SRC_DIR)
+VCS_DW_LIB := -y /usr/cad/synopsys/synthesis/2024.09-sp2/dw/sim_ver
+VCS_POST_DEFINES := +define+POST_SIM
+VCS_POST_RUN_OPTS := +notimingcheck +neg_tchk +sdfverbose +no_notifier
+VCS_LIBEXT := +libext+.v+.sv
+STDCELL_SIM_V := /cad/process/ADFP/Executable_Package/Collaterals/IP/stdcell/N16ADFP_StdCell/VERILOG/N16ADFP_StdCell.v
+SRAM_SIM_V := /cad/process/ADFP/Executable_Package/Collaterals/IP/sram/N16ADFP_SRAM/VERILOG/N16ADFP_SRAM_100a.v
 TB_DPI_SRCS := ../$(TB_DIR)/time_utils.c
 
 # Design and testbench
@@ -62,25 +69,32 @@ RTL_SRCS := \
     $(SRC_DIR)/PROCESS_3.sv \
     $(SRC_DIR)/SOLE.sv
 
+# Use bash for pipefail support in tee pipelines
+SHELL := /bin/bash
+
 # Create directories
-$(BUILD_DIR) $(SYN_DIR) $(REPORTS_DIR):
+$(BUILD_DIR) $(SYN_DIR) $(REPORTS_DIR) $(LOG_DIR):
 	mkdir -p $@
 
 # =====================================================================
 # PRE-SIM: RTL Simulation (behavioral, before synthesis)
 # =====================================================================
-pre_sim: | $(BUILD_DIR)
+pre_sim: | $(BUILD_DIR) $(LOG_DIR)
 	@echo "=========================================="
 	@echo "PRE-SIM: RTL Simulation (Behavioral)"
 	@echo "=========================================="
-	cd $(BUILD_DIR) && \
+	@set -o pipefail; \
+	cd $(BUILD_DIR) && { \
 	$(VCS) $(VCS_OPTS) $(VCS_INCDIR) \
+		$(VCS_DW_LIB) \
+		$(VCS_LIBEXT) \
 		-top $(TB_TOP) \
 		-o pre_sim_exec \
 		$(addprefix ../,$(RTL_SRCS)) \
 		../$(TB_FILE) \
 		$(TB_DPI_SRCS) && \
-	./pre_sim_exec
+	./pre_sim_exec; \
+	} 2>&1 | tee ../$(LOG_DIR)/prs_sim.log
 	@echo "PRE-SIM completed. Logs in $(BUILD_DIR)/"
 
 # =====================================================================
@@ -92,6 +106,8 @@ Divider_PreCompute_test: | $(BUILD_DIR)
 	@echo "=========================================="
 	cd $(BUILD_DIR) && \
 	$(VCS) $(VCS_OPTS) $(VCS_INCDIR) \
+		$(VCS_DW_LIB) \
+		$(VCS_LIBEXT) \
 		-top $(DP_TB_TOP) \
 		-o Divider_PreCompute_test_exec \
 		../$(SRC_DIR)/timescale.sv \
@@ -109,6 +125,8 @@ Divider_test: | $(BUILD_DIR)
 	@echo "=========================================="
 	cd $(BUILD_DIR) && \
 	$(VCS) $(VCS_OPTS) $(VCS_INCDIR) \
+		$(VCS_DW_LIB) \
+		$(VCS_LIBEXT) \
 		-top $(DIV_TB_TOP) \
 		-o Divider_test_exec \
 		../$(SRC_DIR)/timescale.sv \
@@ -127,6 +145,8 @@ Log2Exp_test: | $(BUILD_DIR)
 	@echo "=========================================="
 	cd $(BUILD_DIR) && \
 	$(VCS) $(VCS_OPTS) $(VCS_INCDIR) \
+		$(VCS_DW_LIB) \
+		$(VCS_LIBEXT) \
 		-top $(LOG2EXP_TB_TOP) \
 		-o Log2Exp_test_exec \
 		../$(SRC_DIR)/timescale.sv \
@@ -144,6 +164,8 @@ PROCESS_2_test: | $(BUILD_DIR)
 	@echo "=========================================="
 	cd $(BUILD_DIR) && \
 	$(VCS) $(VCS_OPTS) $(VCS_INCDIR) \
+		$(VCS_DW_LIB) \
+		$(VCS_LIBEXT) \
 		-top $(P2_TB_TOP) \
 		-o PROCESS_2_test_exec \
 		../$(SRC_DIR)/timescale.sv \
@@ -162,6 +184,8 @@ Reduction_test: | $(BUILD_DIR)
 	@echo "=========================================="
 	cd $(BUILD_DIR) && \
 	$(VCS) $(VCS_OPTS) $(VCS_INCDIR) \
+		$(VCS_DW_LIB) \
+		$(VCS_LIBEXT) \
 		-top $(RED_TB_TOP) \
 		-o Reduction_test_exec \
 		../$(SRC_DIR)/timescale.sv \
@@ -179,6 +203,8 @@ MaxUnit_test: | $(BUILD_DIR)
 	@echo "=========================================="
 	cd $(BUILD_DIR) && \
 	$(VCS) $(VCS_OPTS) $(VCS_INCDIR) \
+		$(VCS_DW_LIB) \
+		$(VCS_LIBEXT) \
 		-top $(MAXUNIT_TB_TOP) \
 		-o MaxUnit_test_exec \
 		../$(SRC_DIR)/timescale.sv \
@@ -196,6 +222,8 @@ Max_FIFO_test: | $(BUILD_DIR)
 	@echo "=========================================="
 	cd $(BUILD_DIR) && \
 	$(VCS) $(VCS_OPTS) $(VCS_INCDIR) \
+		$(VCS_DW_LIB) \
+		$(VCS_LIBEXT) \
 		-top $(MAXFIFO_TB_TOP) \
 		-o Max_FIFO_test_exec \
 		../$(SRC_DIR)/timescale.sv \
@@ -215,6 +243,8 @@ Output_FIFO_test: | $(BUILD_DIR)
 	@echo "=========================================="
 	cd $(BUILD_DIR) && \
 	$(VCS) $(VCS_OPTS) $(VCS_INCDIR) \
+		$(VCS_DW_LIB) \
+		$(VCS_LIBEXT) \
 		-top $(OUTFIFO_TB_TOP) \
 		-o Output_FIFO_test_exec \
 		../$(SRC_DIR)/timescale.sv \
@@ -228,14 +258,15 @@ Output_FIFO_test: | $(BUILD_DIR)
 # =====================================================================
 # SYNTHESIZE: DC RTL to Gate-Level Synthesis
 # =====================================================================
-synthesize: | $(BUILD_DIR) $(SYN_DIR) $(REPORTS_DIR)
+synthesize: | $(BUILD_DIR) $(SYN_DIR) $(REPORTS_DIR) $(LOG_DIR)
 	@test -f $(SCRIPT_DIR)/synthesis.tcl || (echo "[ERROR] Missing $(SCRIPT_DIR)/synthesis.tcl" && exit 1)
 	@echo "=========================================="
 	@echo "DC Synthesis: RTL -> Gate-Level"
 	@echo "=========================================="
 	cp $(SCRIPT_DIR)/synopsys_dc.setup $(BUILD_DIR)/.synopsys_dc.setup
+	@set -o pipefail; \
 	cd $(BUILD_DIR) && \
-	$(DC_SHELL) -no_home_init -f ../$(SCRIPT_DIR)/synthesis.tcl | tee syn_compile.log
+	$(DC_SHELL) -no_home_init -f ../$(SCRIPT_DIR)/synthesis.tcl 2>&1 | tee ../$(LOG_DIR)/synthesize.log
 	@echo "Synthesis completed. Results in $(SYN_DIR)/"
 
 # =====================================================================
@@ -253,23 +284,36 @@ dv: | $(BUILD_DIR) $(SYN_DIR)
 # POST-SIM: Gate-Level Simulation (after synthesis)
 # Gate-level netlist from $(SYN_DIR)/SOLE_syn.v
 # =====================================================================
-post_sim: $(SYN_DIR)/SOLE_syn.v | $(BUILD_DIR)
+post_sim: $(SYN_DIR)/SOLE_syn.v $(SYN_DIR)/SOLE_syn.sdf | $(BUILD_DIR) $(LOG_DIR)
 	@echo "=========================================="
 	@echo "POST-SIM: Gate-Level Simulation"
 	@echo "=========================================="
-	cd $(BUILD_DIR) && \
+	@set -o pipefail; \
+	cd $(BUILD_DIR) && { \
 	$(VCS) $(VCS_OPTS) $(VCS_INCDIR) \
+		$(VCS_DW_LIB) \
+		$(VCS_LIBEXT) \
+		$(VCS_POST_DEFINES) \
 		-top $(TB_TOP) \
 		-o post_sim_exec \
+		../$(SRC_DIR)/timescale.sv \
+		$(STDCELL_SIM_V) \
+		$(SRAM_SIM_V) \
 		../$(SYN_DIR)/SOLE_syn.v \
 		../$(TB_FILE) \
 		$(TB_DPI_SRCS) && \
-	./post_sim_exec
+	./post_sim_exec $(VCS_POST_RUN_OPTS); \
+	} 2>&1 | tee ../$(LOG_DIR)/post_sim.log
 	@echo "POST-SIM completed. Logs in $(BUILD_DIR)/"
 
 # Check if synthesized netlist exists
 $(SYN_DIR)/SOLE_syn.v:
 	@echo "[ERROR] Synthesized netlist not found: $@"
+	@echo "Please run 'make synthesize' first"
+	@exit 1
+
+$(SYN_DIR)/SOLE_syn.sdf:
+	@echo "[ERROR] SDF file not found: $@"
 	@echo "Please run 'make synthesize' first"
 	@exit 1
 

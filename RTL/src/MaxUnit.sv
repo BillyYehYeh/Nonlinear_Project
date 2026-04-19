@@ -1,6 +1,6 @@
 module MaxUnit (
   input  logic        clk,
-  input  logic        rst,
+  input  logic        rst_n,
   input  logic [15:0] A,
   input  logic [15:0] B,
   input  logic [15:0] C,
@@ -46,8 +46,8 @@ module MaxUnit (
     n2 = fp16_max(C, D);
   end
 
-  always @(posedge clk) begin
-    if (rst) begin
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
       r1 <= 16'h0000;
       r2 <= 16'h0000;
     end else begin

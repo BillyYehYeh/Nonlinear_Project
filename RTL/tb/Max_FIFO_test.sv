@@ -23,7 +23,7 @@ module Max_FIFO_test;
   bit verbose_log;
 
   Max_FIFO dut (
-    .clk(clk), .rst(rst),
+    .clk(clk), .rst_n(!rst),
     .data_in(data_in), .write_en(write_en),
     .data_out(data_out), .read_ready(read_ready), .read_valid(read_valid),
     .clear(clear), .full(full), .empty(empty), .count(count)

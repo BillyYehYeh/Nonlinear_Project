@@ -1,6 +1,6 @@
 module PROCESS_1_Module (
   input  logic        clk,
-  input  logic        rst,
+  input  logic        rst_n,
   input  logic        enable,
   input  logic [63:0] DataIn_64bits,
   input  logic [15:0] Global_Max,
@@ -61,20 +61,75 @@ module PROCESS_1_Module (
   logic [31:0] shifted_value;
   logic [31:0] final_result;
 
-`ifndef SYNTHESIS
-  // initial begin
-  //   $display("[DBG P1 SUBCHK] 4500-4800=%h 4600-4800=%h 4700-4800=%h 4800-4800=%h",
-  //            fp16_subtract(16'h4500, 16'h4800),
-  //            fp16_subtract(16'h4600, 16'h4800),
-  //            fp16_subtract(16'h4700, 16'h4800),
-  //            fp16_subtract(16'h4800, 16'h4800));
-  // end
+`ifdef SYNTHESIS
+  logic [15:0] stage3_diff_dw [0:4];
+  logic [7:0]  stage3_diff_status [0:4];
+
+  DW_fp_add #(
+    .sig_width       (10),
+    .exp_width       (5),
+    .ieee_compliance (0)
+  ) u_fp_sub_0 (
+    .a      (stage2_datain_reg[0]),
+    .b      ({~stage2_max_reg[15], stage2_max_reg[14:0]}),
+    .rnd    (3'b000),
+    .z      (stage3_diff_dw[0]),
+    .status (stage3_diff_status[0])
+  );
+
+  DW_fp_add #(
+    .sig_width       (10),
+    .exp_width       (5),
+    .ieee_compliance (0)
+  ) u_fp_sub_1 (
+    .a      (stage2_datain_reg[1]),
+    .b      ({~stage2_max_reg[15], stage2_max_reg[14:0]}),
+    .rnd    (3'b000),
+    .z      (stage3_diff_dw[1]),
+    .status (stage3_diff_status[1])
+  );
+
+  DW_fp_add #(
+    .sig_width       (10),
+    .exp_width       (5),
+    .ieee_compliance (0)
+  ) u_fp_sub_2 (
+    .a      (stage2_datain_reg[2]),
+    .b      ({~stage2_max_reg[15], stage2_max_reg[14:0]}),
+    .rnd    (3'b000),
+    .z      (stage3_diff_dw[2]),
+    .status (stage3_diff_status[2])
+  );
+
+  DW_fp_add #(
+    .sig_width       (10),
+    .exp_width       (5),
+    .ieee_compliance (0)
+  ) u_fp_sub_3 (
+    .a      (stage2_datain_reg[3]),
+    .b      ({~stage2_max_reg[15], stage2_max_reg[14:0]}),
+    .rnd    (3'b000),
+    .z      (stage3_diff_dw[3]),
+    .status (stage3_diff_status[3])
+  );
+
+  DW_fp_add #(
+    .sig_width       (10),
+    .exp_width       (5),
+    .ieee_compliance (0)
+  ) u_fp_sub_4 (
+    .a      (stage2_max_reg),
+    .b      ({~Global_Max[15], Global_Max[14:0]}),
+    .rnd    (3'b000),
+    .z      (stage3_diff_dw[4]),
+    .status (stage3_diff_status[4])
+  );
 `endif
 
   // ---------------- Submodule instantiations ----------------
   MaxUnit u_max_unit (
     .clk(clk),
-    .rst(rst),
+    .rst_n(rst_n),
     .A(datain_unpacked[0]),
     .B(datain_unpacked[1]),
     .C(datain_unpacked[2]),
@@ -84,7 +139,7 @@ module PROCESS_1_Module (
 
   Reduction_Module u_reduction_unit (
     .clk(clk),
-    .rst(rst),
+    .rst_n(rst_n),
     .Input_Vector(reduction_in),
     .Output_Sum(reduction_output)
   );
@@ -128,11 +183,19 @@ module PROCESS_1_Module (
 
   // ---------------- Stage 3 combinational ----------------
   always_comb begin
+`ifdef SYNTHESIS
+    stage3_diff_next[0] = stage3_diff_dw[0];
+    stage3_diff_next[1] = stage3_diff_dw[1];
+    stage3_diff_next[2] = stage3_diff_dw[2];
+    stage3_diff_next[3] = stage3_diff_dw[3];
+    stage3_diff_next[4] = stage3_diff_dw[4];
+`else
     stage3_diff_next[0] = fp16_subtract(stage2_datain_reg[0], stage2_max_reg);
     stage3_diff_next[1] = fp16_subtract(stage2_datain_reg[1], stage2_max_reg);
     stage3_diff_next[2] = fp16_subtract(stage2_datain_reg[2], stage2_max_reg);
     stage3_diff_next[3] = fp16_subtract(stage2_datain_reg[3], stage2_max_reg);
     stage3_diff_next[4] = fp16_subtract(stage2_max_reg, Global_Max);
+`endif
     stage3_valid_next = stage2_valid_reg;
   end
 
@@ -167,8 +230,8 @@ module PROCESS_1_Module (
   end
 
   // ---------------- Sequential pipeline update ----------------
-  always_ff @(posedge clk) begin
-    if (rst) begin
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
       stage1_datain_reg[0] <= 16'd0;
       stage1_datain_reg[1] <= 16'd0;
       stage1_datain_reg[2] <= 16'd0;
@@ -240,35 +303,5 @@ module PROCESS_1_Module (
     final_result = shifted_value + reduction_output;
     Sum_Buffer_Update = final_result;
     stage5_valid = stage5_valid_reg;
-
-`ifndef SYNTHESIS
-    // if (stage5_valid_reg) begin
-    //   $display("[DBG P1 DIFF] t=%0t d0=%h d1=%h d2=%h d3=%h d4=%h max=%h gmax=%h in0=%h in1=%h in2=%h in3=%h",
-    //            $time,
-    //            stage3_diff_reg[0],
-    //            stage3_diff_reg[1],
-    //            stage3_diff_reg[2],
-    //            stage3_diff_reg[3],
-    //            stage3_diff_reg[4],
-    //            stage2_max_reg,
-    //        Global_Max,
-    //            stage2_datain_reg[0],
-    //            stage2_datain_reg[1],
-    //            stage2_datain_reg[2],
-    //            stage2_datain_reg[3]);
-    //   $display("[DBG P1 CORE] t=%0t pwr={%0d,%0d,%0d,%0d,%0d} pow_vec=%h shift=%0d red=%0d sum_in=%0d sum_upd=%0d",
-    //            $time,
-    //            stage4_power_reg[4],
-    //            stage4_power_reg[3],
-    //            stage4_power_reg[2],
-    //            stage4_power_reg[1],
-    //            stage4_power_reg[0],
-    //            stage5_pow_vec_reg,
-    //            stage5_shift_reg,
-    //            reduction_output,
-    //            Sum_Buffer_In,
-    //            final_result);
-    // end
-`endif
   end
 endmodule

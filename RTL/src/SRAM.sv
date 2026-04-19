@@ -3,7 +3,7 @@ module SRAM #(
   parameter int DATA_BITS = 16
 ) (
   input  logic                  clk,
-  input  logic                  rst,
+  input  logic                  rst_n,
   input  logic                  we,
   input  logic                  re,
   input  logic [ADDR_BITS-1:0]  waddr,
@@ -113,9 +113,9 @@ module SRAM #(
     end
   end
 
-  always_ff @(posedge clk) begin
+  always_ff @(posedge clk or negedge rst_n) begin
     logic [MACRO_WIDTH-1:0] row_tmp;
-    if (rst) begin
+    if (!rst_n) begin
       rdata_reg <= '0;
       valid_bits <= '0;
       for (i = 0; i < NUM_ROWS; i++) begin
@@ -156,8 +156,8 @@ module SRAM #(
         .A(macro_a[gi]),
         .D(macro_d[gi]),
         .BWEB(macro_bweb[gi]),
-        .RTSEL(2'b00),
-        .WTSEL(2'b00),
+        .RTSEL(2'b01),
+        .WTSEL(2'b01),
         .Q(macro_q[gi])
       );
     end

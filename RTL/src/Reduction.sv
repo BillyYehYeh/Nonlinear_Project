@@ -1,6 +1,6 @@
 module Reduction_Module (
   input  logic        clk,
-  input  logic        rst,
+  input  logic        rst_n,
   input  logic [15:0] Input_Vector,
   output logic [31:0] Output_Sum
 );
@@ -16,8 +16,8 @@ module Reduction_Module (
     s1 = e2 + e3;
   end
 
-  always @(posedge clk) begin
-    if (rst) Output_Sum <= 32'd0;
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) Output_Sum <= 32'd0;
     else Output_Sum <= s0 + s1;
   end
 endmodule

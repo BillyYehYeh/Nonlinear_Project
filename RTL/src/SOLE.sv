@@ -1,6 +1,6 @@
 module SOLE (
   input  logic                           clk,
-  input  logic                           rst,
+  input  logic                           rst_n,
   input  logic [31:0]                    proc_addr,
   input  logic [31:0]                    proc_wdata,
   input  logic                           proc_we,
@@ -63,7 +63,7 @@ module SOLE (
 
   Softmax u_softmax (
     .clk(clk),
-    .rst(rst),
+    .rst_n(rst_n),
     .start(softmax_start),
     .src_addr_base(src_addr_base),
     .dst_addr_base(dst_addr_base),
@@ -88,8 +88,8 @@ module SOLE (
     .M_AXI_RREADY(M_AXI_RREADY)
   );
 
-  always_ff @(posedge clk) begin
-    if (rst) begin
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
       reg_control <= 32'd0;
       reg_src_addr_base_l <= 32'd0;
       reg_src_addr_base_h <= 32'd0;

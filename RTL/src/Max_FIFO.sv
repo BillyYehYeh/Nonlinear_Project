@@ -1,6 +1,6 @@
 module Max_FIFO (
   input  logic                        clk,
-  input  logic                        rst,
+  input  logic                        rst_n,
   input  logic [15:0]                 data_in,
   input  logic                        write_en,
   output logic [15:0]                 data_out,
@@ -29,7 +29,7 @@ module Max_FIFO (
   logic        sram_output_data_valid;
 
   SRAM #(.ADDR_BITS(FIFO_ADDR_BITS), .DATA_BITS(16)) u_sram (
-    .clk(clk), .rst(rst),
+    .clk(clk), .rst_n(rst_n),
     .we(we_sig), .re(re_sig),
     .waddr(wptr), .raddr(rptr),
     .wdata(data_in), .rdata(sram_rdata)
@@ -47,19 +47,22 @@ module Max_FIFO (
     buffered = (skid_valid ? 1 : 0) + (sram_output_data_valid ? 1 : 0);
     storage_avail = count_reg - buffered;
 
-    we_sig = write_en && !full;
+    we_sig = 1'b0;
     re_sig = 1'b0;
-    if (storage_avail > 0) begin
-      if (read_ready) begin
-        re_sig = (buffered < 2);
-      end else begin
-        re_sig = !skid_valid && !sram_output_data_valid;
+    if (!clear) begin
+      we_sig = write_en && !full;
+      if (storage_avail > 0) begin
+        if (read_ready) begin
+          re_sig = (buffered < 2);
+        end else begin
+          re_sig = !skid_valid && !sram_output_data_valid;
+        end
       end
     end
   end
 
-  always_ff @(posedge clk) begin
-    if (rst) begin
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
       wptr <= '0;
       rptr <= '0;
     end else if (clear) begin
@@ -70,8 +73,10 @@ module Max_FIFO (
     end
   end
 
-  always_ff @(posedge clk) begin
-    if (rst || clear) begin
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+      count_reg <= 12'd0;
+    end else if (clear) begin
       count_reg <= 12'd0;
     end else begin
       logic accepted_read_handshake;
@@ -84,8 +89,12 @@ module Max_FIFO (
     end
   end
 
-  always_ff @(posedge clk) begin
-    if (rst || clear) begin
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+      skid_reg <= 16'd0;
+      skid_valid <= 1'b0;
+      sram_output_data_valid <= 1'b0;
+    end else if (clear) begin
       skid_reg <= 16'd0;
       skid_valid <= 1'b0;
       sram_output_data_valid <= 1'b0;

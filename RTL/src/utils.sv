@@ -2,6 +2,7 @@
 `define UTILS_SV
 
 package utils_pkg;
+`ifndef SYNTHESIS
   function automatic logic [15:0] fp16_add(input logic [15:0] a, input logic [15:0] b);
     logic sign_res;
     logic [15:0] frac;
@@ -151,6 +152,7 @@ package utils_pkg;
       fp16_subtract = fp16_add(a, {~b[15], b[14:0]});
     end
   endfunction
+`endif
 endpackage
 
 `endif

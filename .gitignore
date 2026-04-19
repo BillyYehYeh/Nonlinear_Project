@@ -117,6 +117,7 @@ checkpoints/
 build/
 CNN_EXAMPLE/
 **/*.log
+*.sdf
 
 # Local files
 .local/

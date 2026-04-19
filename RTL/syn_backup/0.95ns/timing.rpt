@@ -1,0 +1,106 @@
+Information: Updating design information... (UID-85)
+Warning: Design 'SOLE' contains 1 high-fanout nets. A fanout number of 1000 will be used for delay calculations involving these nets. (TIM-134)
+ 
+****************************************
+Report : timing
+        -path full
+        -delay max
+        -max_paths 1
+        -sort_by group
+Design : SOLE
+Version: W-2024.09-SP2
+Date   : Sat Apr 18 21:34:26 2026
+****************************************
+
+ # A fanout number of 1000 was used for high fanout net computations.
+
+Operating Conditions: ss0p72vm40c   Library: N16ADFP_StdCellss0p72vm40c
+Wire Load Model Mode: segmented
+
+  Startpoint: rst (input port clocked by clk)
+  Endpoint: u_softmax/u_max_fifo/u_sram/rdata_reg_reg_0_
+            (rising edge-triggered flip-flop clocked by clk)
+  Path Group: clk
+  Path Type: max
+
+  Des/Clust/Port     Wire Load Model       Library
+  ------------------------------------------------
+  SOLE               ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  Softmax            ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  Max_FIFO           ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  Output_FIFO        ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_3_Module   ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_2_Module   ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module   ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  SRAM_ADDR_BITS10_DATA_BITS16_1
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+
+  Point                                                   Incr       Path
+  --------------------------------------------------------------------------
+  clock clk (rise edge)                                 0.0000     0.0000
+  clock network delay (ideal)                           0.2000     0.2000
+  input external delay                                  0.5700     0.7700 f
+  rst (in)                                              0.0052     0.7752 f
+  U682/ZN (INVD4BWP16P90LVT)                            0.0073     0.7825 r
+  U683/ZN (CKND8BWP16P90LVT)                            0.0059     0.7884 f
+  u_softmax/rst (Softmax)                               0.0000     0.7884 f
+  u_softmax/U165/ZN (CKND8BWP16P90LVT)                  0.0056     0.7940 r
+  u_softmax/U161/ZN (CKND12BWP16P90LVT)                 0.0054     0.7995 f
+  u_softmax/U59/Z (OR4D4BWP16P90LVT)                    0.0188     0.8183 f
+  u_softmax/U163/ZN (INVD4BWP16P90LVT)                  0.0059     0.8242 r
+  u_softmax/u_max_fifo/read_ready (Max_FIFO)            0.0000     0.8242 r
+  u_softmax/u_max_fifo/U49/ZN (CKND2BWP16P90LVT)        0.0055     0.8297 f
+  u_softmax/u_max_fifo/U48/ZN (OAI21D4BWP16P90LVT)      0.0085     0.8382 r
+  u_softmax/u_max_fifo/U138/ZN (IND4D4BWP16P90LVT)      0.0117     0.8499 f
+  u_softmax/u_max_fifo/U32/ZN (CKND4BWP16P90LVT)        0.0095     0.8594 r
+  u_softmax/u_max_fifo/u_sram/re (SRAM_ADDR_BITS10_DATA_BITS16_1)
+                                                        0.0000     0.8594 r
+  u_softmax/u_max_fifo/u_sram/U1114/Z (AN2D1BWP20P90LVT)
+                                                        0.0171     0.8764 r
+  u_softmax/u_max_fifo/u_sram/U5118/Z (AN2D1BWP16P90LVT)
+                                                        0.0136     0.8901 r
+  u_softmax/u_max_fifo/u_sram/U930/Z (AN2D1BWP16P90LVT)
+                                                        0.0185     0.9086 r
+  u_softmax/u_max_fifo/u_sram/U4930/Z (BUFFD1BWP16P90LVT)
+                                                        0.0215     0.9301 r
+  u_softmax/u_max_fifo/u_sram/U4570/Z (BUFFD1BWP16P90LVT)
+                                                        0.0465     0.9766 r
+  u_softmax/u_max_fifo/u_sram/U3646/Z (BUFFD1BWP16P90LVT)
+                                                        0.0518     1.0284 r
+  u_softmax/u_max_fifo/u_sram/U19301/ZN (AOI22D1BWP16P90LVT)
+                                                        0.0140     1.0424 f
+  u_softmax/u_max_fifo/u_sram/U5999/ZN (ND4D1BWP16P90LVT)
+                                                        0.0117     1.0541 r
+  u_softmax/u_max_fifo/u_sram/U19299/ZN (AOI222D1BWP16P90LVT)
+                                                        0.0107     1.0648 f
+  u_softmax/u_max_fifo/u_sram/U19295/Z (AN4D1BWP16P90LVT)
+                                                        0.0169     1.0817 f
+  u_softmax/u_max_fifo/u_sram/U19294/ZN (OAI22D1BWP16P90LVT)
+                                                        0.0088     1.0904 r
+  u_softmax/u_max_fifo/u_sram/U19236/ZN (NR4D1BWP16P90LVT)
+                                                        0.0084     1.0988 f
+  u_softmax/u_max_fifo/u_sram/U5117/ZN (OAI21D1BWP16P90LVT)
+                                                        0.0091     1.1079 r
+  u_softmax/u_max_fifo/u_sram/U5480/ZN (AOI222D1BWP16P90LVT)
+                                                        0.0088     1.1167 f
+  u_softmax/u_max_fifo/u_sram/U46129/ZN (ND3D1BWP16P90LVT)
+                                                        0.0090     1.1256 r
+  u_softmax/u_max_fifo/u_sram/rdata_reg_reg_0_/D (DFQD2BWP16P90LVT)
+                                                        0.0000     1.1256 r
+  data arrival time                                                1.1256
+
+  clock clk (rise edge)                                 0.9500     0.9500
+  clock network delay (ideal)                           0.2000     1.1500
+  clock uncertainty                                    -0.0200     1.1300
+  u_softmax/u_max_fifo/u_sram/rdata_reg_reg_0_/CP (DFQD2BWP16P90LVT)
+                                                        0.0000     1.1300 r
+  library setup time                                   -0.0044     1.1256
+  data required time                                               1.1256
+  --------------------------------------------------------------------------
+  data required time                                               1.1256
+  data arrival time                                               -1.1256
+  --------------------------------------------------------------------------
+  slack (MET)                                                      0.0000
+
+
+1

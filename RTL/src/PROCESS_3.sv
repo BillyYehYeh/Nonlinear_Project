@@ -1,6 +1,6 @@
 module PROCESS_3_Module (
   input  logic        clk,
-  input  logic        rst,
+  input  logic        rst_n,
   input  logic        enable,
   input  logic        stall,
   input  logic        input_data_valid,
@@ -48,6 +48,23 @@ module PROCESS_3_Module (
   logic [15:0] divider_out [0:3];
   logic [3:0]  log2exp_out;
 
+`ifdef SYNTHESIS
+  logic [15:0] stage1_sub_dw;
+  logic [7:0]  stage1_sub_status;
+
+  DW_fp_add #(
+    .sig_width       (10),
+    .exp_width       (5),
+    .ieee_compliance (0)
+  ) u_fp_sub_stage1 (
+    .a      (Local_Max),
+    .b      ({~Global_Max[15], Global_Max[14:0]}),
+    .rnd    (3'b000),
+    .z      (stage1_sub_dw),
+    .status (stage1_sub_status)
+  );
+`endif
+
   // ---------- Submodules ----------
   Log2Exp u_log2exp (
     .fp16_in(stage1_sub_reg),
@@ -68,7 +85,11 @@ module PROCESS_3_Module (
 
   // Stage1_Comb: Sub_Result = Local_Max - Global_Max, valid pass-through
   always_comb begin
+`ifdef SYNTHESIS
+    stage1_sub_next = stage1_sub_dw;
+`else
     stage1_sub_next = fp16_subtract(Local_Max, Global_Max);
+`endif
     stage1_valid_next = input_data_valid;
   end
 
@@ -100,8 +121,8 @@ module PROCESS_3_Module (
   end
 
   // Pipeline_Update (SystemC parity)
-  always_ff @(posedge clk) begin
-    if (rst) begin
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
       stage1_sub_reg <= 16'd0;
       stage1_valid_reg <= 1'b0;
       stage2_power_reg <= 4'd0;
