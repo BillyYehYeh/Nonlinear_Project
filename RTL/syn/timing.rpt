@@ -9,7 +9,7 @@ Report : timing
         -sort_by group
 Design : SOLE
 Version: W-2024.09-SP2
-Date   : Sun Apr 19 23:33:32 2026
+Date   : Wed Apr 22 23:08:59 2026
 ****************************************
 
  # A fanout number of 1000 was used for high fanout net computations.
@@ -17,84 +17,225 @@ Date   : Sun Apr 19 23:33:32 2026
 Operating Conditions: ss0p72vm40c   Library: N16ADFP_StdCellss0p72vm40c
 Wire Load Model Mode: segmented
 
-  Startpoint: M_AXI_WREADY
-              (input port clocked by clk)
-  Endpoint: u_softmax/u_max_fifo/u_sram/rdata_reg_reg_12_
+  Startpoint: u_softmax/u_p1/stage2_max_reg_reg_11_
+              (rising edge-triggered flip-flop clocked by clk)
+  Endpoint: u_softmax/u_p1/stage3_diff_reg_reg_2__9_
             (rising edge-triggered flip-flop clocked by clk)
   Path Group: clk
   Path Type: max
 
   Des/Clust/Port     Wire Load Model       Library
   ------------------------------------------------
+  SRAM_ADDR_BITS10_DATA_BITS16_0
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  SRAM_ADDR_BITS10_DATA_BITS16_1
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  Reduction_Module   ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  MaxUnit            ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  Output_FIFO        ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  Max_FIFO           ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_3_Module   ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_2_Module   ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module   ZeroWireload          N16ADFP_StdCellss0p72vm40c
   SOLE               ZeroWireload          N16ADFP_StdCellss0p72vm40c
   Softmax            ZeroWireload          N16ADFP_StdCellss0p72vm40c
-  Max_FIFO           ZeroWireload          N16ADFP_StdCellss0p72vm40c
-  SRAM_ADDR_BITS10_DATA_BITS16_1
+  PROCESS_1_Module_DW_cmp_J6_0
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_sub_278_DP_OP_366J6_8568_J6_0
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_DW_fp_add_0_DW_fp_add_1
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_DW_fp_addsub_J6_0
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_DW_fp_add_3_DW_fp_add_4
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_DW_fp_addsub_J4_0
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_DW_fp_add_4_DW_fp_add_5
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_DW_fp_addsub_J5_0
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_DW_fp_add_1_DW_fp_add_2
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_DW_fp_addsub_J2_0
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_DW_fp_add_2_DW_fp_add_3
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_DW_fp_addsub_J3_0
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_sub_278_DP_OP_366J3_8568_J3_0
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_DW_cmp_J3_0
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_add_403_DP_OP_365J3_2836_J3_0
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_DW01_add_J3_0
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_DW_norm_J3_0
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module_DW01_inc_J3_0
                      ZeroWireload          N16ADFP_StdCellss0p72vm40c
 
   Point                                                   Incr       Path
   --------------------------------------------------------------------------
   clock clk (rise edge)                                 0.0000     0.0000
   clock network delay (ideal)                           0.2000     0.2000
-  input external delay                                  0.6000     0.8000 f
-  M_AXI_WREADY (in)                                     0.0032     0.8032 f
-  u_softmax/M_AXI_WREADY (Softmax)                      0.0000     0.8032 f
-  u_softmax/U404/ZN (CKND1BWP16P90LVT)                  0.0052     0.8084 r
-  u_softmax/U527/ZN (ND2D1BWP16P90LVT)                  0.0103     0.8187 f
-  u_softmax/U529/Z (AN2D1BWP16P90LVT)                   0.0152     0.8339 f
-  u_softmax/u_max_fifo/read_ready (Max_FIFO)            0.0000     0.8339 f
-  u_softmax/u_max_fifo/U65/ZN (CKND1BWP16P90LVT)        0.0058     0.8397 r
-  u_softmax/u_max_fifo/U143/ZN (ND2D1BWP16P90LVT)       0.0083     0.8480 f
-  u_softmax/u_max_fifo/U144/ZN (OAI211D1BWP16P90LVT)    0.0086     0.8565 r
-  u_softmax/u_max_fifo/U22/ZN (CKND1BWP20P90)           0.0318     0.8884 f
-  u_softmax/u_max_fifo/u_sram/re (SRAM_ADDR_BITS10_DATA_BITS16_1)
-                                                        0.0000     0.8884 f
-  u_softmax/u_max_fifo/u_sram/U9857/Z (AN2D1BWP16P90LVT)
-                                                        0.0207     0.9091 f
-  u_softmax/u_max_fifo/u_sram/U20869/Z (BUFFD1BWP16P90LVT)
-                                                        0.0119     0.9210 f
-  u_softmax/u_max_fifo/u_sram/U20542/ZN (CKND1BWP16P90LVT)
-                                                        0.0065     0.9275 r
-  u_softmax/u_max_fifo/u_sram/U20091/Z (BUFFD1BWP16P90LVT)
-                                                        0.0238     0.9512 r
-  u_softmax/u_max_fifo/u_sram/U4573/Z (AN2D1BWP16P90LVT)
-                                                        0.0441     0.9953 r
-  u_softmax/u_max_fifo/u_sram/U4572/Z (CKBD1BWP16P90LVT)
-                                                        0.0318     1.0271 r
-  u_softmax/u_max_fifo/u_sram/U18532/Z (BUFFD1BWP16P90LVT)
-                                                        0.0335     1.0606 r
-  u_softmax/u_max_fifo/u_sram/U18341/Z (BUFFD1BWP16P90LVT)
-                                                        0.0375     1.0981 r
-  u_softmax/u_max_fifo/u_sram/U35538/ZN (AOI22D1BWP16P90LVT)
-                                                        0.0120     1.1102 f
-  u_softmax/u_max_fifo/u_sram/U35536/Z (AN4D1BWP16P90LVT)
-                                                        0.0186     1.1288 f
-  u_softmax/u_max_fifo/u_sram/U35526/ZN (OAI22D1BWP16P90LVT)
-                                                        0.0070     1.1358 r
-  u_softmax/u_max_fifo/u_sram/U35525/ZN (NR4D1BWP16P90LVT)
-                                                        0.0118     1.1476 f
-  u_softmax/u_max_fifo/u_sram/U35447/ZN (OAI21D1BWP16P90LVT)
-                                                        0.0095     1.1571 r
-  u_softmax/u_max_fifo/u_sram/U43564/ZN (AOI22D1BWP16P90LVT)
-                                                        0.0096     1.1668 f
-  u_softmax/u_max_fifo/u_sram/U43567/ZN (ND3D1BWP16P90LVT)
-                                                        0.0087     1.1755 r
-  u_softmax/u_max_fifo/u_sram/rdata_reg_reg_12_/D (DFCNQD2BWP16P90LVT)
-                                                        0.0000     1.1755 r
-  data arrival time                                                1.1755
+  u_softmax/u_p1/stage2_max_reg_reg_11_/CP (DFCNQND1BWP16P90LVT)
+                                                        0.0000 #   0.2000 r
+  u_softmax/u_p1/stage2_max_reg_reg_11_/QN (DFCNQND1BWP16P90LVT)
+                                                        0.0520     0.2520 f
+  u_softmax/u_p1/U204/ZN (CKND2BWP16P90LVT)             0.0129     0.2649 r
+  u_softmax/u_p1/u_fp_sub_2/b[11] (PROCESS_1_Module_DW_fp_add_2_DW_fp_add_3)
+                                                        0.0000     0.2649 r
+  u_softmax/u_p1/u_fp_sub_2/U1/b[11] (PROCESS_1_Module_DW_fp_addsub_J3_0)
+                                                        0.0000     0.2649 r
+  u_softmax/u_p1/u_fp_sub_2/U1/U376/Z (BUFFD1BWP16P90LVT)
+                                                        0.0159     0.2807 r
+  u_softmax/u_p1/u_fp_sub_2/U1/lt_224/B[11] (PROCESS_1_Module_DW_cmp_J3_0)
+                                                        0.0000     0.2807 r
+  u_softmax/u_p1/u_fp_sub_2/U1/lt_224/U289/ZN (CKND1BWP16P90LVT)
+                                                        0.0077     0.2884 f
+  u_softmax/u_p1/u_fp_sub_2/U1/lt_224/U344/Z (OR2D1BWP16P90LVT)
+                                                        0.0139     0.3023 f
+  u_softmax/u_p1/u_fp_sub_2/U1/lt_224/U292/ZN (AOI22D1BWP16P90)
+                                                        0.0199     0.3222 r
+  u_softmax/u_p1/u_fp_sub_2/U1/lt_224/U321/ZN (ND3D1BWP16P90LVT)
+                                                        0.0117     0.3338 f
+  u_softmax/u_p1/u_fp_sub_2/U1/lt_224/U293/ZN (AOI31D1BWP16P90LVT)
+                                                        0.0111     0.3450 r
+  u_softmax/u_p1/u_fp_sub_2/U1/lt_224/U301/ZN (INVD1BWP16P90LVT)
+                                                        0.0063     0.3512 f
+  u_softmax/u_p1/u_fp_sub_2/U1/lt_224/U323/ZN (AOI31D1BWP16P90LVT)
+                                                        0.0092     0.3604 r
+  u_softmax/u_p1/u_fp_sub_2/U1/lt_224/U322/ZN (IND2D1BWP16P90LVT)
+                                                        0.0119     0.3723 r
+  u_softmax/u_p1/u_fp_sub_2/U1/lt_224/GE_LT_GT_LE (PROCESS_1_Module_DW_cmp_J3_0)
+                                                        0.0000     0.3723 r
+  u_softmax/u_p1/u_fp_sub_2/U1/U83/ZN (INVD2BWP16P90LVT)
+                                                        0.0070     0.3793 f
+  u_softmax/u_p1/u_fp_sub_2/U1/U129/ZN (INVD4BWP16P90LVT)
+                                                        0.0149     0.3941 r
+  u_softmax/u_p1/u_fp_sub_2/U1/U416/ZN (MUX2ND2BWP16P90LVT)
+                                                        0.0247     0.4188 r
+  u_softmax/u_p1/u_fp_sub_2/U1/U82/ZN (CKND1BWP16P90LVT)
+                                                        0.0116     0.4304 f
+  u_softmax/u_p1/u_fp_sub_2/U1/U10/ZN (ND4D1BWP16P90LVT)
+                                                        0.0096     0.4400 r
+  u_softmax/u_p1/u_fp_sub_2/U1/U117/ZN (NR2D1BWP16P90LVT)
+                                                        0.0080     0.4480 f
+  u_softmax/u_p1/u_fp_sub_2/U1/U107/ZN (AOI21D1BWP16P90LVT)
+                                                        0.0127     0.4607 r
+  u_softmax/u_p1/u_fp_sub_2/U1/U307/ZN (ND3D1BWP16P90LVT)
+                                                        0.0159     0.4765 f
+  u_softmax/u_p1/u_fp_sub_2/U1/U53/Z (OR2D1BWP16P90LVT)
+                                                        0.0221     0.4986 f
+  u_softmax/u_p1/u_fp_sub_2/U1/U106/ZN (CKND1BWP16P90LVT)
+                                                        0.0117     0.5103 r
+  u_softmax/u_p1/u_fp_sub_2/U1/U111/ZN (ND2D1BWP16P90LVT)
+                                                        0.0088     0.5191 f
+  u_softmax/u_p1/u_fp_sub_2/U1/U110/ZN (OAI221D2BWP16P90LVT)
+                                                        0.0076     0.5267 r
+  u_softmax/u_p1/u_fp_sub_2/U1/U377/ZN (XNR2D1BWP16P90LVT)
+                                                        0.0215     0.5482 f
+  u_softmax/u_p1/u_fp_sub_2/U1/add_1_root_add_295_2/B[1] (PROCESS_1_Module_DW01_add_J3_0)
+                                                        0.0000     0.5482 f
+  u_softmax/u_p1/u_fp_sub_2/U1/add_1_root_add_295_2/U6/Z (AN2D1BWP16P90LVT)
+                                                        0.0123     0.5605 f
+  u_softmax/u_p1/u_fp_sub_2/U1/add_1_root_add_295_2/U2/Z (AN2D1BWP16P90LVT)
+                                                        0.0122     0.5727 f
+  u_softmax/u_p1/u_fp_sub_2/U1/add_1_root_add_295_2/U1_3/CO (FA1D1BWP16P90LVT)
+                                                        0.0250     0.5977 f
+  u_softmax/u_p1/u_fp_sub_2/U1/add_1_root_add_295_2/U1_4/CO (FA1D1BWP16P90LVT)
+                                                        0.0265     0.6242 f
+  u_softmax/u_p1/u_fp_sub_2/U1/add_1_root_add_295_2/U1_5/CO (FA1D1BWP16P90LVT)
+                                                        0.0265     0.6507 f
+  u_softmax/u_p1/u_fp_sub_2/U1/add_1_root_add_295_2/U1_6/CO (FA1D1BWP16P90LVT)
+                                                        0.0265     0.6772 f
+  u_softmax/u_p1/u_fp_sub_2/U1/add_1_root_add_295_2/U1_7/CO (FA1D1BWP16P90LVT)
+                                                        0.0265     0.7038 f
+  u_softmax/u_p1/u_fp_sub_2/U1/add_1_root_add_295_2/U1_8/CO (FA1D1BWP16P90LVT)
+                                                        0.0265     0.7303 f
+  u_softmax/u_p1/u_fp_sub_2/U1/add_1_root_add_295_2/U1_9/CO (FA1D1BWP16P90LVT)
+                                                        0.0265     0.7568 f
+  u_softmax/u_p1/u_fp_sub_2/U1/add_1_root_add_295_2/U1_10/CO (FA1D1BWP16P90LVT)
+                                                        0.0265     0.7833 f
+  u_softmax/u_p1/u_fp_sub_2/U1/add_1_root_add_295_2/U1_11/CO (FA1D1BWP16P90LVT)
+                                                        0.0270     0.8103 f
+  u_softmax/u_p1/u_fp_sub_2/U1/add_1_root_add_295_2/U1_12/CO (FA1D2BWP16P90LVT)
+                                                        0.0215     0.8317 f
+  u_softmax/u_p1/u_fp_sub_2/U1/add_1_root_add_295_2/U5/ZN (NR2D1BWP16P90LVT)
+                                                        0.0067     0.8384 r
+  u_softmax/u_p1/u_fp_sub_2/U1/add_1_root_add_295_2/U1/ZN (XNR2D1BWP16P90LVT)
+                                                        0.0261     0.8645 f
+  u_softmax/u_p1/u_fp_sub_2/U1/add_1_root_add_295_2/SUM[14] (PROCESS_1_Module_DW01_add_J3_0)
+                                                        0.0000     0.8645 f
+  u_softmax/u_p1/u_fp_sub_2/U1/U1/a[13] (PROCESS_1_Module_DW_norm_J3_0)
+                                                        0.0000     0.8645 f
+  u_softmax/u_p1/u_fp_sub_2/U1/U1/U8/ZN (IND2D2BWP16P90LVT)
+                                                        0.0251     0.8896 f
+  u_softmax/u_p1/u_fp_sub_2/U1/U1/U7/ZN (ND2D2BWP16P90LVT)
+                                                        0.0180     0.9076 r
+  u_softmax/u_p1/u_fp_sub_2/U1/U1/U9/ZN (IIND3D4BWP16P90LVT)
+                                                        0.0105     0.9180 f
+  u_softmax/u_p1/u_fp_sub_2/U1/U1/b[13] (PROCESS_1_Module_DW_norm_J3_0)
+                                                        0.0000     0.9180 f
+  u_softmax/u_p1/u_fp_sub_2/U1/U98/Z (BUFFD4BWP16P90LVT)
+                                                        0.0154     0.9334 f
+  u_softmax/u_p1/u_fp_sub_2/U1/U255/ZN (IND2D1BWP16P90LVT)
+                                                        0.0173     0.9507 f
+  u_softmax/u_p1/u_fp_sub_2/U1/U164/ZN (INVD1BWP16P90LVT)
+                                                        0.0172     0.9679 r
+  u_softmax/u_p1/u_fp_sub_2/U1/U249/ZN (AOI22D1BWP16P90LVT)
+                                                        0.0094     0.9773 f
+  u_softmax/u_p1/u_fp_sub_2/U1/U248/ZN (OAI21D1BWP16P90LVT)
+                                                        0.0176     0.9949 r
+  u_softmax/u_p1/u_fp_sub_2/U1/add_399/A[0] (PROCESS_1_Module_DW01_inc_J3_0)
+                                                        0.0000     0.9949 r
+  u_softmax/u_p1/u_fp_sub_2/U1/add_399/U1_1_1/CO (HA1D1BWP16P90LVT)
+                                                        0.0197     1.0146 r
+  u_softmax/u_p1/u_fp_sub_2/U1/add_399/U1_1_2/CO (HA1D1BWP16P90LVT)
+                                                        0.0170     1.0316 r
+  u_softmax/u_p1/u_fp_sub_2/U1/add_399/U1_1_3/CO (HA1D1BWP16P90LVT)
+                                                        0.0170     1.0486 r
+  u_softmax/u_p1/u_fp_sub_2/U1/add_399/U1_1_4/CO (HA1D1BWP16P90LVT)
+                                                        0.0170     1.0656 r
+  u_softmax/u_p1/u_fp_sub_2/U1/add_399/U1_1_5/CO (HA1D1BWP16P90LVT)
+                                                        0.0170     1.0826 r
+  u_softmax/u_p1/u_fp_sub_2/U1/add_399/U1_1_6/CO (HA1D1BWP16P90LVT)
+                                                        0.0170     1.0996 r
+  u_softmax/u_p1/u_fp_sub_2/U1/add_399/U1_1_7/CO (HA1D1BWP16P90LVT)
+                                                        0.0170     1.1166 r
+  u_softmax/u_p1/u_fp_sub_2/U1/add_399/U1_1_8/CO (HA1D1BWP16P90LVT)
+                                                        0.0156     1.1321 r
+  u_softmax/u_p1/u_fp_sub_2/U1/add_399/U2/Z (XOR2D1BWP16P90LVT)
+                                                        0.0133     1.1454 r
+  u_softmax/u_p1/u_fp_sub_2/U1/add_399/SUM[9] (PROCESS_1_Module_DW01_inc_J3_0)
+                                                        0.0000     1.1454 r
+  u_softmax/u_p1/u_fp_sub_2/U1/U414/ZN (ND2D1BWP16P90LVT)
+                                                        0.0063     1.1517 f
+  u_softmax/u_p1/u_fp_sub_2/U1/U80/ZN (IOAI21D1BWP16P90LVT)
+                                                        0.0062     1.1579 r
+  u_softmax/u_p1/u_fp_sub_2/U1/z[9] (PROCESS_1_Module_DW_fp_addsub_J3_0)
+                                                        0.0000     1.1579 r
+  u_softmax/u_p1/u_fp_sub_2/z[9] (PROCESS_1_Module_DW_fp_add_2_DW_fp_add_3)
+                                                        0.0000     1.1579 r
+  u_softmax/u_p1/U249/Z (CKMUX2D1BWP16P90LVT)           0.0149     1.1728 r
+  u_softmax/u_p1/stage3_diff_reg_reg_2__9_/D (DFCNQD1BWP20P90LVT)
+                                                        0.0000     1.1728 r
+  data arrival time                                                1.1728
 
   clock clk (rise edge)                                 1.0000     1.0000
   clock network delay (ideal)                           0.2000     1.2000
   clock uncertainty                                    -0.0200     1.1800
-  u_softmax/u_max_fifo/u_sram/rdata_reg_reg_12_/CP (DFCNQD2BWP16P90LVT)
+  u_softmax/u_p1/stage3_diff_reg_reg_2__9_/CP (DFCNQD1BWP20P90LVT)
                                                         0.0000     1.1800 r
-  library setup time                                   -0.0045     1.1755
-  data required time                                               1.1755
+  library setup time                                   -0.0061     1.1739
+  data required time                                               1.1739
   --------------------------------------------------------------------------
-  data required time                                               1.1755
-  data arrival time                                               -1.1755
+  data required time                                               1.1739
+  data arrival time                                               -1.1728
   --------------------------------------------------------------------------
-  slack (MET)                                                      0.0001
+  slack (MET)                                                      0.0010
 
 
 1

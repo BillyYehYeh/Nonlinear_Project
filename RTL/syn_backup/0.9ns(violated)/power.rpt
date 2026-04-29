@@ -1,0 +1,249 @@
+Loading db file '/cad/process/ADFP/Executable_Package/Collaterals/IP/stdcell/N16ADFP_StdCell/NLDM/N16ADFP_StdCellss0p72vm40c.db'
+Loading db file '/cad/process/ADFP/Executable_Package/Collaterals/IP/sram/N16ADFP_SRAM/NLDM/N16ADFP_SRAM_ss0p72v0p72vm40c_100a.db'
+Information: Propagating switching activity (low effort zero delay simulation). (PWR-6)
+Warning: Design has unannotated primary inputs. (PWR-414)
+Warning: Design has unannotated sequential cell outputs. (PWR-415)
+Warning: Design has unannotated black box outputs. (PWR-428)
+ 
+****************************************
+Report : power
+        -analysis_effort low
+Design : SOLE
+Version: W-2024.09-SP2
+Date   : Mon Apr 20 01:55:04 2026
+****************************************
+
+
+Library(s) Used:
+
+    N16ADFP_StdCellss0p72vm40c (File: /cad/process/ADFP/Executable_Package/Collaterals/IP/stdcell/N16ADFP_StdCell/NLDM/N16ADFP_StdCellss0p72vm40c.db)
+    N16ADFP_SRAM_ss0p72v0p72vm40c (File: /cad/process/ADFP/Executable_Package/Collaterals/IP/sram/N16ADFP_SRAM/NLDM/N16ADFP_SRAM_ss0p72v0p72vm40c_100a.db)
+
+
+Operating Conditions: ss0p72vm40c   Library: N16ADFP_StdCellss0p72vm40c
+Wire Load Model Mode: segmented
+
+Design        Wire Load Model            Library
+------------------------------------------------
+SOLE                   ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Softmax                ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_2_Module       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_3_Module       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Max_FIFO               ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Output_FIFO            ZeroWireload      N16ADFP_StdCellss0p72vm40c
+MaxUnit                ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Reduction_Module       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Log2Exp_5              ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Log2Exp_4              ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Divider_PreCompute_Module
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Divider_Module_3       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+SRAM_ADDR_BITS10_DATA_BITS16_1
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Log2Exp_0              ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Log2Exp_1              ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Log2Exp_2              ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Log2Exp_3              ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Divider_Module_0       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Divider_Module_1       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Divider_Module_2       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+SRAM_ADDR_BITS10_DATA_BITS16_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Softmax_DW01_inc_0     ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Softmax_DW01_inc_1     ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Softmax_DW01_inc_2     ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Softmax_DW01_add_0_DW01_add_2
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Softmax_DW01_inc_3     ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Softmax_DW01_inc_4     ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Softmax_DW01_add_1_DW01_add_3
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Softmax_DW_cmp_0       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Softmax_DW01_inc_5     ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Softmax_DW_cmp_3       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Softmax_DW_cmp_4       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Softmax_DW_cmp_5       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Softmax_DW01_cmp2_0    ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Softmax_DW01_cmp2_1    ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Softmax_DW01_cmp2_2    ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Output_FIFO_DW01_dec_0 ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Output_FIFO_DW01_inc_0_DW01_inc_6
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Output_FIFO_DW01_inc_1_DW01_inc_7
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Output_FIFO_DW01_inc_2_DW01_inc_8
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Max_FIFO_DW01_dec_0_DW01_dec_1
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Max_FIFO_DW01_inc_0_DW01_inc_9
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Max_FIFO_DW01_inc_1_DW01_inc_10
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Max_FIFO_DW01_inc_2_DW01_inc_11
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_3_Module_DW_fp_add_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_fp_add_0_DW_fp_add_1
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_fp_add_1_DW_fp_add_2
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_fp_add_2_DW_fp_add_3
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_fp_add_3_DW_fp_add_4
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_fp_add_4_DW_fp_add_5
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW01_add_5_DW01_add_14
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Reduction_Module_DW01_add_0_DW01_add_25
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Reduction_Module_DW01_add_1_DW01_add_26
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+Reduction_Module_DW01_add_2_DW01_add_27
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_3_Module_DW_fp_addsub_J3_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_3_Module_DW_cmp_J3_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_3_Module_DW01_add_J3_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_3_Module_DW_norm_J3_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_3_Module_DW01_add_J3_1
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_3_Module_DW_lzd_J3_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_3_Module_DW01_inc_J3_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_3_Module_sub_278_DP_OP_366J3_8568_J3_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_3_Module_add_403_DP_OP_365J3_2836_J3_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_fp_addsub_J4_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_cmp_J4_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW01_add_J4_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_norm_J4_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW01_add_J4_1
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_lzd_J4_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW01_inc_J4_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_sub_278_DP_OP_366J4_8568_J4_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_add_403_DP_OP_365J4_2836_J4_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_fp_addsub_J5_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_cmp_J5_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW01_add_J5_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_norm_J5_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW01_add_J5_1
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_lzd_J5_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW01_inc_J5_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_sub_278_DP_OP_366J5_8568_J5_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_add_403_DP_OP_365J5_2836_J5_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_fp_addsub_J6_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_cmp_J6_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW01_add_J6_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_norm_J6_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW01_add_J6_1
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_lzd_J6_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW01_inc_J6_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_sub_278_DP_OP_366J6_8568_J6_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_add_403_DP_OP_365J6_2836_J6_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_fp_addsub_J7_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_cmp_J7_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW01_add_J7_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_norm_J7_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW01_add_J7_1
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_lzd_J7_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW01_inc_J7_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_sub_278_DP_OP_366J7_8568_J7_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_add_403_DP_OP_365J7_2836_J7_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_fp_addsub_J8_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_cmp_J8_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW01_add_J8_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_norm_J8_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW01_add_J8_1
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW_lzd_J8_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_DW01_inc_J8_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_sub_278_DP_OP_366J8_8568_J8_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+PROCESS_1_Module_add_403_DP_OP_365J8_2836_J8_0
+                       ZeroWireload      N16ADFP_StdCellss0p72vm40c
+
+
+Global Operating Voltage = 0.72 
+Power-specific unit information :
+    Voltage Units = 1V
+    Capacitance Units = 1.000000pf
+    Time Units = 1ns
+    Dynamic Power Units = 1mW    (derived from V,C,T units)
+    Leakage Power Units = 1nW
+
+
+Attributes
+----------
+i - Including register clock pin internal power
+
+
+  Cell Internal Power  =  90.4557 mW   (98%)
+  Net Switching Power  =   1.6264 mW    (2%)
+                         ---------
+Total Dynamic Power    =  92.0821 mW  (100%)
+
+Cell Leakage Power     =  22.5819 uW
+
+
+                 Internal         Switching           Leakage            Total
+Power Group      Power            Power               Power              Power   (   %    )  Attrs
+--------------------------------------------------------------------------------------------------
+io_pad             0.0000            0.0000            0.0000            0.0000  (   0.00%)
+memory             0.3631            0.0000        1.8513e+03            0.3649  (   0.40%)
+black_box          0.0000            0.0000            0.0000            0.0000  (   0.00%)
+clock_network     89.9495            0.0000            0.0000           89.9495  (  97.64%)  i
+register       1.6617e-02        2.2711e-03        1.0542e+03        1.9945e-02  (   0.02%)
+sequential         0.0000            0.0000            0.0000            0.0000  (   0.00%)
+combinational      0.1434            1.6241        1.9676e+04            1.7872  (   1.94%)
+--------------------------------------------------------------------------------------------------
+Total             90.4726 mW         1.6263 mW     2.2582e+04 nW        92.1215 mW
+1

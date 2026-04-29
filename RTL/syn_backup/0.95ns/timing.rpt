@@ -9,7 +9,7 @@ Report : timing
         -sort_by group
 Design : SOLE
 Version: W-2024.09-SP2
-Date   : Sat Apr 18 21:34:26 2026
+Date   : Mon Apr 20 12:09:06 2026
 ****************************************
 
  # A fanout number of 1000 was used for high fanout net computations.
@@ -17,8 +17,9 @@ Date   : Sat Apr 18 21:34:26 2026
 Operating Conditions: ss0p72vm40c   Library: N16ADFP_StdCellss0p72vm40c
 Wire Load Model Mode: segmented
 
-  Startpoint: rst (input port clocked by clk)
-  Endpoint: u_softmax/u_max_fifo/u_sram/rdata_reg_reg_0_
+  Startpoint: M_AXI_RDATA[32]
+              (input port clocked by clk)
+  Endpoint: u_softmax/u_p1/u_max_unit/r2_reg_5_
             (rising edge-triggered flip-flop clocked by clk)
   Path Group: clk
   Path Type: max
@@ -26,79 +27,55 @@ Wire Load Model Mode: segmented
   Des/Clust/Port     Wire Load Model       Library
   ------------------------------------------------
   SOLE               ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  MaxUnit            ZeroWireload          N16ADFP_StdCellss0p72vm40c
   Softmax            ZeroWireload          N16ADFP_StdCellss0p72vm40c
-  Max_FIFO           ZeroWireload          N16ADFP_StdCellss0p72vm40c
-  Output_FIFO        ZeroWireload          N16ADFP_StdCellss0p72vm40c
-  PROCESS_3_Module   ZeroWireload          N16ADFP_StdCellss0p72vm40c
-  PROCESS_2_Module   ZeroWireload          N16ADFP_StdCellss0p72vm40c
   PROCESS_1_Module   ZeroWireload          N16ADFP_StdCellss0p72vm40c
-  SRAM_ADDR_BITS10_DATA_BITS16_1
-                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
 
   Point                                                   Incr       Path
   --------------------------------------------------------------------------
   clock clk (rise edge)                                 0.0000     0.0000
   clock network delay (ideal)                           0.2000     0.2000
   input external delay                                  0.5700     0.7700 f
-  rst (in)                                              0.0052     0.7752 f
-  U682/ZN (INVD4BWP16P90LVT)                            0.0073     0.7825 r
-  U683/ZN (CKND8BWP16P90LVT)                            0.0059     0.7884 f
-  u_softmax/rst (Softmax)                               0.0000     0.7884 f
-  u_softmax/U165/ZN (CKND8BWP16P90LVT)                  0.0056     0.7940 r
-  u_softmax/U161/ZN (CKND12BWP16P90LVT)                 0.0054     0.7995 f
-  u_softmax/U59/Z (OR4D4BWP16P90LVT)                    0.0188     0.8183 f
-  u_softmax/U163/ZN (INVD4BWP16P90LVT)                  0.0059     0.8242 r
-  u_softmax/u_max_fifo/read_ready (Max_FIFO)            0.0000     0.8242 r
-  u_softmax/u_max_fifo/U49/ZN (CKND2BWP16P90LVT)        0.0055     0.8297 f
-  u_softmax/u_max_fifo/U48/ZN (OAI21D4BWP16P90LVT)      0.0085     0.8382 r
-  u_softmax/u_max_fifo/U138/ZN (IND4D4BWP16P90LVT)      0.0117     0.8499 f
-  u_softmax/u_max_fifo/U32/ZN (CKND4BWP16P90LVT)        0.0095     0.8594 r
-  u_softmax/u_max_fifo/u_sram/re (SRAM_ADDR_BITS10_DATA_BITS16_1)
-                                                        0.0000     0.8594 r
-  u_softmax/u_max_fifo/u_sram/U1114/Z (AN2D1BWP20P90LVT)
-                                                        0.0171     0.8764 r
-  u_softmax/u_max_fifo/u_sram/U5118/Z (AN2D1BWP16P90LVT)
-                                                        0.0136     0.8901 r
-  u_softmax/u_max_fifo/u_sram/U930/Z (AN2D1BWP16P90LVT)
-                                                        0.0185     0.9086 r
-  u_softmax/u_max_fifo/u_sram/U4930/Z (BUFFD1BWP16P90LVT)
-                                                        0.0215     0.9301 r
-  u_softmax/u_max_fifo/u_sram/U4570/Z (BUFFD1BWP16P90LVT)
-                                                        0.0465     0.9766 r
-  u_softmax/u_max_fifo/u_sram/U3646/Z (BUFFD1BWP16P90LVT)
-                                                        0.0518     1.0284 r
-  u_softmax/u_max_fifo/u_sram/U19301/ZN (AOI22D1BWP16P90LVT)
-                                                        0.0140     1.0424 f
-  u_softmax/u_max_fifo/u_sram/U5999/ZN (ND4D1BWP16P90LVT)
-                                                        0.0117     1.0541 r
-  u_softmax/u_max_fifo/u_sram/U19299/ZN (AOI222D1BWP16P90LVT)
-                                                        0.0107     1.0648 f
-  u_softmax/u_max_fifo/u_sram/U19295/Z (AN4D1BWP16P90LVT)
-                                                        0.0169     1.0817 f
-  u_softmax/u_max_fifo/u_sram/U19294/ZN (OAI22D1BWP16P90LVT)
-                                                        0.0088     1.0904 r
-  u_softmax/u_max_fifo/u_sram/U19236/ZN (NR4D1BWP16P90LVT)
-                                                        0.0084     1.0988 f
-  u_softmax/u_max_fifo/u_sram/U5117/ZN (OAI21D1BWP16P90LVT)
-                                                        0.0091     1.1079 r
-  u_softmax/u_max_fifo/u_sram/U5480/ZN (AOI222D1BWP16P90LVT)
-                                                        0.0088     1.1167 f
-  u_softmax/u_max_fifo/u_sram/U46129/ZN (ND3D1BWP16P90LVT)
-                                                        0.0090     1.1256 r
-  u_softmax/u_max_fifo/u_sram/rdata_reg_reg_0_/D (DFQD2BWP16P90LVT)
-                                                        0.0000     1.1256 r
-  data arrival time                                                1.1256
+  M_AXI_RDATA[32] (in)                                  0.0010     0.7710 f
+  U697/Z (DEL025D1BWP20P90)                             0.0354     0.8064 f
+  U698/Z (CKBD1BWP16P90LVT)                             0.0116     0.8181 f
+  u_softmax/M_AXI_RDATA[32] (Softmax)                   0.0000     0.8181 f
+  u_softmax/u_p1/DataIn_64bits[32] (PROCESS_1_Module)   0.0000     0.8181 f
+  u_softmax/u_p1/u_max_unit/C[0] (MaxUnit)              0.0000     0.8181 f
+  u_softmax/u_p1/u_max_unit/U89/ZN (CKND1BWP16P90LVT)   0.0068     0.8249 r
+  u_softmax/u_p1/u_max_unit/U173/ZN (NR2D1BWP16P90)     0.0089     0.8338 f
+  u_softmax/u_p1/u_max_unit/U174/ZN (MAOI222D1BWP16P90)
+                                                        0.0142     0.8480 r
+  u_softmax/u_p1/u_max_unit/U175/ZN (OAI211D1BWP16P90)
+                                                        0.0185     0.8665 f
+  u_softmax/u_p1/u_max_unit/U176/ZN (INR3D1BWP16P90)    0.0188     0.8852 f
+  u_softmax/u_p1/u_max_unit/U177/ZN (IND3D1BWP16P90)    0.0217     0.9069 f
+  u_softmax/u_p1/u_max_unit/U178/ZN (AOI31D1BWP16P90)   0.0146     0.9215 r
+  u_softmax/u_p1/u_max_unit/U179/ZN (AOI211D1BWP16P90)
+                                                        0.0150     0.9364 f
+  u_softmax/u_p1/u_max_unit/U180/ZN (OAI31D1BWP16P90)   0.0176     0.9540 r
+  u_softmax/u_p1/u_max_unit/U233/ZN (INR2D1BWP16P90)    0.0227     0.9768 r
+  u_softmax/u_p1/u_max_unit/U229/Z (CKMUX2D1BWP16P90)   0.0229     0.9996 r
+  u_softmax/u_p1/u_max_unit/U228/ZN (AOI21D1BWP16P90)   0.0077     1.0074 f
+  u_softmax/u_p1/u_max_unit/U227/Z (CKMUX2D1BWP16P90)   0.0303     1.0377 f
+  u_softmax/u_p1/u_max_unit/U80/ZN (CKND1BWP16P90LVT)   0.0219     1.0595 r
+  u_softmax/u_p1/u_max_unit/U27/Z (AO22D4BWP20P90)      0.0395     1.0990 r
+  u_softmax/u_p1/u_max_unit/U25/Z (BUFFD1BWP16P90)      0.0142     1.1132 r
+  u_softmax/u_p1/u_max_unit/U26/Z (CKBD1BWP16P90LVT)    0.0089     1.1221 r
+  u_softmax/u_p1/u_max_unit/r2_reg_5_/D (DFCNQD2BWP20P90)
+                                                        0.0000     1.1221 r
+  data arrival time                                                1.1221
 
   clock clk (rise edge)                                 0.9500     0.9500
   clock network delay (ideal)                           0.2000     1.1500
   clock uncertainty                                    -0.0200     1.1300
-  u_softmax/u_max_fifo/u_sram/rdata_reg_reg_0_/CP (DFQD2BWP16P90LVT)
+  u_softmax/u_p1/u_max_unit/r2_reg_5_/CP (DFCNQD2BWP20P90)
                                                         0.0000     1.1300 r
-  library setup time                                   -0.0044     1.1256
-  data required time                                               1.1256
+  library setup time                                   -0.0079     1.1221
+  data required time                                               1.1221
   --------------------------------------------------------------------------
-  data required time                                               1.1256
-  data arrival time                                               -1.1256
+  data required time                                               1.1221
+  data arrival time                                               -1.1221
   --------------------------------------------------------------------------
   slack (MET)                                                      0.0000
 

@@ -1,0 +1,100 @@
+Information: Updating design information... (UID-85)
+Warning: Design 'SOLE' contains 1 high-fanout nets. A fanout number of 1000 will be used for delay calculations involving these nets. (TIM-134)
+ 
+****************************************
+Report : timing
+        -path full
+        -delay max
+        -max_paths 1
+        -sort_by group
+Design : SOLE
+Version: W-2024.09-SP2
+Date   : Mon Apr 20 15:23:50 2026
+****************************************
+
+ # A fanout number of 1000 was used for high fanout net computations.
+
+Operating Conditions: ss0p72vm40c   Library: N16ADFP_StdCellss0p72vm40c
+Wire Load Model Mode: segmented
+
+  Startpoint: M_AXI_WREADY
+              (input port clocked by clk)
+  Endpoint: u_softmax/u_output_fifo/u_sram/rdata_reg_reg_15_
+            (rising edge-triggered flip-flop clocked by clk)
+  Path Group: clk
+  Path Type: max
+
+  Des/Clust/Port     Wire Load Model       Library
+  ------------------------------------------------
+  SOLE               ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  Softmax            ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  Output_FIFO        ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  SRAM_ADDR_BITS10_DATA_BITS16_0
+                     ZeroWireload          N16ADFP_StdCellss0p72vm40c
+
+  Point                                                   Incr       Path
+  --------------------------------------------------------------------------
+  clock clk (rise edge)                                 0.0000     0.0000
+  clock network delay (ideal)                           0.2000     0.2000
+  input external delay                                  0.5580     0.7580 r
+  M_AXI_WREADY (in)                                     0.0033     0.7613 r
+  u_softmax/M_AXI_WREADY (Softmax)                      0.0000     0.7613 r
+  u_softmax/U408/ZN (CKND1BWP16P90LVT)                  0.0063     0.7676 f
+  u_softmax/U529/ZN (ND2D2BWP16P90LVT)                  0.0071     0.7747 r
+  u_softmax/U530/Z (AN3D4BWP16P90LVT)                   0.0167     0.7915 r
+  u_softmax/u_output_fifo/read_ready (Output_FIFO)      0.0000     0.7915 r
+  u_softmax/u_output_fifo/U21/ZN (CKND1BWP16P90LVT)     0.0049     0.7964 f
+  u_softmax/u_output_fifo/U26/ZN (ND2D1BWP16P90LVT)     0.0067     0.8030 r
+  u_softmax/u_output_fifo/U25/ZN (ND3D1BWP16P90LVT)     0.0142     0.8172 f
+  u_softmax/u_output_fifo/U24/ZN (INVD2BWP16P90LVT)     0.0149     0.8321 r
+  u_softmax/u_output_fifo/u_sram/re (SRAM_ADDR_BITS10_DATA_BITS16_0)
+                                                        0.0000     0.8321 r
+  u_softmax/u_output_fifo/u_sram/U20626/Z (AN2D1BWP16P90LVT)
+                                                        0.0173     0.8494 r
+  u_softmax/u_output_fifo/u_sram/U1263/ZN (INVD1BWP16P90LVT)
+                                                        0.0099     0.8593 f
+  u_softmax/u_output_fifo/u_sram/U10253/Z (AN3D1BWP16P90LVT)
+                                                        0.0273     0.8866 f
+  u_softmax/u_output_fifo/u_sram/U20630/Z (BUFFD1BWP16P90LVT)
+                                                        0.0249     0.9115 f
+  u_softmax/u_output_fifo/u_sram/U20104/Z (BUFFD1BWP16P90LVT)
+                                                        0.0317     0.9431 f
+  u_softmax/u_output_fifo/u_sram/U19217/Z (BUFFD1BWP16P90LVT)
+                                                        0.0557     0.9989 f
+  u_softmax/u_output_fifo/u_sram/U41251/ZN (AOI22D1BWP16P90LVT)
+                                                        0.0202     1.0191 r
+  u_softmax/u_output_fifo/u_sram/U21329/ZN (ND4D1BWP16P90LVT)
+                                                        0.0138     1.0328 f
+  u_softmax/u_output_fifo/u_sram/U41248/ZN (AOI222D1BWP16P90LVT)
+                                                        0.0206     1.0534 r
+  u_softmax/u_output_fifo/u_sram/U41244/Z (AN4D1BWP16P90LVT)
+                                                        0.0219     1.0753 r
+  u_softmax/u_output_fifo/u_sram/U41243/ZN (OAI22D1BWP16P90LVT)
+                                                        0.0100     1.0853 f
+  u_softmax/u_output_fifo/u_sram/U41242/ZN (NR4D1BWP16P90LVT)
+                                                        0.0166     1.1019 r
+  u_softmax/u_output_fifo/u_sram/U41164/ZN (OAI21D1BWP16P90LVT)
+                                                        0.0092     1.1111 f
+  u_softmax/u_output_fifo/u_sram/U43850/ZN (AOI222D1BWP16P90LVT)
+                                                        0.0181     1.1292 r
+  u_softmax/u_output_fifo/u_sram/U43852/ZN (ND2D1BWP16P90LVT)
+                                                        0.0099     1.1391 f
+  u_softmax/u_output_fifo/u_sram/rdata_reg_reg_15_/D (DFCNQD2BWP20P90)
+                                                        0.0000     1.1391 f
+  data arrival time                                                1.1391
+
+  clock clk (rise edge)                                 0.9300     0.9300
+  clock network delay (ideal)                           0.2000     1.1300
+  clock uncertainty                                    -0.0200     1.1100
+  u_softmax/u_output_fifo/u_sram/rdata_reg_reg_15_/CP (DFCNQD2BWP20P90)
+                                                        0.0000     1.1100 r
+  library setup time                                    0.0291     1.1391
+  data required time                                               1.1391
+  --------------------------------------------------------------------------
+  data required time                                               1.1391
+  data arrival time                                               -1.1391
+  --------------------------------------------------------------------------
+  slack (MET)                                                      0.0000
+
+
+1

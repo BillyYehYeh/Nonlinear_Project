@@ -25,12 +25,25 @@ module Softmax (
   output logic        M_AXI_RREADY
 );
   localparam int DATA_LENGTH_MAX = 4096;
+  localparam int AXI_TIMEOUT_THRESHOLD = 100;
   localparam logic [1:0] AXI_RESP_OKAY = 2'b00;
 
   localparam logic [1:0] STATE_IDLE     = 2'd0;
   localparam logic [1:0] STATE_PROCESS1 = 2'd1;
   localparam logic [1:0] STATE_PROCESS2 = 2'd2;
   localparam logic [1:0] STATE_PROCESS3 = 2'd3;
+
+  localparam logic [3:0] ERR_NONE                        = 4'h0;
+  localparam logic [3:0] ERR_AXI_READ_ERROR              = 4'h1;
+  localparam logic [3:0] ERR_AXI_READ_TIMEOUT            = 4'h2;
+  localparam logic [3:0] ERR_AXI_READ_DATA_MISSING       = 4'h3;
+  localparam logic [3:0] ERR_AXI_WRITE_ERROR             = 4'h4;
+  localparam logic [3:0] ERR_AXI_WRITE_TIMEOUT           = 4'h5;
+  localparam logic [3:0] ERR_AXI_WRITE_RESPONSE_MISMATCH = 4'h6;
+  localparam logic [3:0] ERR_MAX_FIFO_OVERFLOW           = 4'h7;
+  localparam logic [3:0] ERR_OUTPUT_FIFO_OVERFLOW        = 4'h8;
+  localparam logic [3:0] ERR_DATA_LENGTH_INVALID         = 4'h9;
+  localparam logic [3:0] ERR_INVALID_STATE               = 4'hA;
 
   // Internal status/state
   logic [1:0] state;
@@ -92,6 +105,10 @@ module Softmax (
   logic [31:0] write_addr_sent_num;
   logic [31:0] write_data_sent_num;
   logic [31:0] write_response_received_num;
+  logic [31:0] write_buf_addr;
+  logic [63:0] write_buf_data;
+  logic        write_buf_valid;
+  logic        write_buf_aw_sent;
   logic        aw_active;
   logic        w_active;
 
@@ -99,6 +116,24 @@ module Softmax (
   logic process3_finish_flag;
   logic read_resp_error;
   logic write_resp_error;
+  logic invalid_state_error;
+  logic data_length_invalid_error;
+  logic max_fifo_overflow_error;
+  logic output_fifo_overflow_error;
+  logic read_data_missing_error;
+  logic write_response_mismatch_error;
+  logic read_timeout_error;
+  logic write_timeout_error;
+  logic [31:0] read_timeout_counter;
+  logic [31:0] write_timeout_counter;
+  logic any_read_handshake;
+  logic any_write_handshake;
+  logic write_outstanding;
+  logic read_transfer_incomplete;
+  logic write_transfer_incomplete;
+  logic write_timeout_count_enable;
+  logic        error_detected_next;
+  logic [3:0]  error_code_next;
 
   logic [31:0] process2_cycle_counter;
 
@@ -202,12 +237,12 @@ module Softmax (
     // SystemC: stall PROCESS_2 output outside PROCESS2 state
     stall_process2_output_Signal = (state != STATE_PROCESS2);
 
-    // SystemC: stall PROCESS_3 when output valid but AXI write data not ready
-    process3_stall = (state == STATE_PROCESS3) && process3_stage4_valid && !M_AXI_WREADY;
+    // Hold PROCESS_3 while one write beat is buffered but not fully sent.
+    process3_stall = (state == STATE_PROCESS3) && write_buf_valid;
 
     // SystemC validity update mapping
     process1_read_data_valid = M_AXI_RVALID && M_AXI_RREADY;
-    process3_read_data_valid = max_fifo_read_data_valid;
+    process3_read_data_valid = max_fifo_read_en;
 
     // FIFO controls (SystemC manage_fifo_control)
     max_fifo_write_en = (state == STATE_PROCESS1) && !has_error && process1_stage1_valid;
@@ -239,28 +274,130 @@ module Softmax (
             && M_AXI_BVALID
             && M_AXI_BREADY
             && (M_AXI_BRESP != AXI_RESP_OKAY);
+
+    invalid_state_error = (state > STATE_PROCESS3);
+    data_length_invalid_error = (state == STATE_IDLE) && start
+                             && ((data_length == 64'd0) || (data_length > DATA_LENGTH_MAX));
+
+    max_fifo_overflow_error = max_fifo_full && process1_stage1_valid;
+    output_fifo_overflow_error = output_fifo_full && process1_stage5_valid;
+
+    read_data_missing_error = process1_finish_flag
+                           && (read_addr_sent_num != read_data_received_num);
+
+    write_response_mismatch_error = process3_finish_flag
+                                 && ((write_addr_sent_num != write_data_sent_num)
+                                  || (write_addr_sent_num != write_response_received_num)
+                                  || (write_data_sent_num != write_response_received_num));
+
+    any_read_handshake = (M_AXI_ARVALID && M_AXI_ARREADY)
+                      || (M_AXI_RVALID && M_AXI_RREADY);
+    read_transfer_incomplete = ((read_data_received_num * 32'd4) < data_length);
+    read_timeout_error = (state == STATE_PROCESS1)
+                      && !any_read_handshake
+                      && read_transfer_incomplete
+                      && (read_timeout_counter >= (AXI_TIMEOUT_THRESHOLD - 1));
+
+    any_write_handshake = (M_AXI_AWVALID && M_AXI_AWREADY)
+                       || (M_AXI_WVALID && M_AXI_WREADY)
+                       || (M_AXI_BVALID && M_AXI_BREADY);
+    write_outstanding = write_buf_valid
+             || (write_addr_sent_num != write_data_sent_num)
+             || (write_addr_sent_num != write_response_received_num)
+             || (write_data_sent_num != write_response_received_num);
+    write_transfer_incomplete = ((write_addr_sent_num * 32'd4) < data_length)
+                             || ((write_data_sent_num * 32'd4) < data_length)
+                             || ((write_response_received_num * 32'd4) < data_length);
+    write_timeout_count_enable = write_transfer_incomplete
+                              && !any_write_handshake
+                  && (M_AXI_AWVALID || M_AXI_WVALID || write_outstanding);
+    write_timeout_error = (state == STATE_PROCESS3)
+                       && write_timeout_count_enable
+                       && (write_timeout_counter >= (AXI_TIMEOUT_THRESHOLD - 1));
+
+    error_detected_next = 1'b0;
+    error_code_next = ERR_NONE;
+    if (invalid_state_error) begin
+      error_detected_next = 1'b1;
+      error_code_next = ERR_INVALID_STATE;
+    end else if (data_length_invalid_error) begin
+      error_detected_next = 1'b1;
+      error_code_next = ERR_DATA_LENGTH_INVALID;
+    end else if (max_fifo_overflow_error) begin
+      error_detected_next = 1'b1;
+      error_code_next = ERR_MAX_FIFO_OVERFLOW;
+    end else if (output_fifo_overflow_error) begin
+      error_detected_next = 1'b1;
+      error_code_next = ERR_OUTPUT_FIFO_OVERFLOW;
+    end else if (read_resp_error) begin
+      error_detected_next = 1'b1;
+      error_code_next = ERR_AXI_READ_ERROR;
+    end else if (read_data_missing_error) begin
+      error_detected_next = 1'b1;
+      error_code_next = ERR_AXI_READ_DATA_MISSING;
+    end else if (write_resp_error) begin
+      error_detected_next = 1'b1;
+      error_code_next = ERR_AXI_WRITE_ERROR;
+    end else if (write_response_mismatch_error) begin
+      error_detected_next = 1'b1;
+      error_code_next = ERR_AXI_WRITE_RESPONSE_MISMATCH;
+    end else if (read_timeout_error) begin
+      error_detected_next = 1'b1;
+      error_code_next = ERR_AXI_READ_TIMEOUT;
+    end else if (write_timeout_error) begin
+      error_detected_next = 1'b1;
+      error_code_next = ERR_AXI_WRITE_TIMEOUT;
+    end
   end
 
   // ---------------- FSM + process2 timing ----------------
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
+      read_timeout_counter <= 32'd0;
+      write_timeout_counter <= 32'd0;
+    end else begin
+      if (state != STATE_PROCESS1) begin
+        read_timeout_counter <= 32'd0;
+      end else if (any_read_handshake) begin
+        read_timeout_counter <= 32'd0;
+      end else if (read_transfer_incomplete) begin
+        read_timeout_counter <= read_timeout_counter + 32'd1;
+      end
+
+      if (state != STATE_PROCESS3) begin
+        write_timeout_counter <= 32'd0;
+      end else if (any_write_handshake) begin
+        write_timeout_counter <= 32'd0;
+      end else if (write_timeout_count_enable) begin
+        write_timeout_counter <= write_timeout_counter + 32'd1;
+      end else begin
+        write_timeout_counter <= 32'd0;
+      end
+    end
+  end
+
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
       state <= STATE_IDLE;
       done_pulse <= 1'b0;
       has_error <= 1'b0;
-      error_code <= 4'd0;
+      error_code <= ERR_NONE;
       process2_cycle_counter <= 32'd0;
     end else begin
       done_pulse <= 1'b0;
 
-      if (read_resp_error) begin
-        has_error <= 1'b1;
-        error_code <= 4'h1;
-      end else if (write_resp_error) begin
-        has_error <= 1'b1;
-        error_code <= 4'h4;
-      end
-
       if (has_error) begin
+        // Keep error sticky in IDLE, but allow a clean restart with valid start.
+        state <= STATE_IDLE;
+        process2_cycle_counter <= 32'd0;
+        if (start && (data_length != 64'd0) && (data_length <= DATA_LENGTH_MAX)) begin
+          has_error <= 1'b0;
+          error_code <= ERR_NONE;
+          state <= STATE_PROCESS1;
+        end
+      end else if (error_detected_next) begin
+        has_error <= 1'b1;
+        error_code <= error_code_next;
         state <= STATE_IDLE;
         process2_cycle_counter <= 32'd0;
       end else begin
@@ -268,14 +405,9 @@ module Softmax (
           STATE_IDLE: begin
             process2_cycle_counter <= 32'd0;
             if (start) begin
-              if ((data_length == 64'd0) || (data_length > DATA_LENGTH_MAX)) begin
-                has_error <= 1'b1;
-                error_code <= 4'h9;
-              end else begin
-                has_error <= 1'b0;
-                error_code <= 4'h0;
-                state <= STATE_PROCESS1;
-              end
+              has_error <= 1'b0;
+              error_code <= ERR_NONE;
+              state <= STATE_PROCESS1;
             end
           end
 
@@ -368,15 +500,13 @@ module Softmax (
 
   // ---------------- AXI write request parity ----------------
   always_comb begin
-    aw_active = (state == STATE_PROCESS3) && process3_stage4_valid
-             && ((write_addr_sent_num * 32'd4) < data_length);
-    w_active = (state == STATE_PROCESS3) && process3_stage4_valid
-            && ((write_data_sent_num * 32'd4) < data_length);
+    aw_active = (state == STATE_PROCESS3) && write_buf_valid && !write_buf_aw_sent;
+    w_active = (state == STATE_PROCESS3) && write_buf_valid && write_buf_aw_sent;
 
     if (state == STATE_PROCESS3) begin
-      M_AXI_AWADDR = dst_addr_base[31:0] + (write_addr_sent_num * 32'd8);
+      M_AXI_AWADDR = write_buf_addr;
       M_AXI_AWVALID = aw_active;
-      M_AXI_WDATA = Process3_Output_Vector;
+      M_AXI_WDATA = write_buf_data;
       M_AXI_WSTRB = 8'hFF;
       M_AXI_WVALID = w_active;
       M_AXI_BREADY = 1'b1;
@@ -396,17 +526,36 @@ module Softmax (
       write_addr_sent_num <= 32'd0;
       write_data_sent_num <= 32'd0;
       write_response_received_num <= 32'd0;
+      write_buf_addr <= 32'd0;
+      write_buf_data <= 64'd0;
+      write_buf_valid <= 1'b0;
+      write_buf_aw_sent <= 1'b0;
     end else if (state != STATE_PROCESS3) begin 
       write_addr_sent_num <= 32'd0;
       write_data_sent_num <= 32'd0;
       write_response_received_num <= 32'd0;
+      write_buf_addr <= 32'd0;
+      write_buf_data <= 64'd0;
+      write_buf_valid <= 1'b0;
+      write_buf_aw_sent <= 1'b0;
     end else begin
+      if (!write_buf_valid && process3_stage4_valid
+          && ((write_data_sent_num * 32'd4) < data_length)) begin
+        write_buf_addr <= dst_addr_base[31:0] + (write_data_sent_num * 32'd8);
+        write_buf_data <= Process3_Output_Vector;
+        write_buf_valid <= 1'b1;
+        write_buf_aw_sent <= 1'b0;
+      end
+
       if (aw_active && M_AXI_AWREADY) begin
         write_addr_sent_num <= write_addr_sent_num + 32'd1;
+        write_buf_aw_sent <= 1'b1;
       end
 
       if (w_active && M_AXI_WREADY) begin
         write_data_sent_num <= write_data_sent_num + 32'd1;
+        write_buf_valid <= 1'b0;
+        write_buf_aw_sent <= 1'b0;
       end
 
       if (M_AXI_BVALID && M_AXI_BREADY) begin

@@ -18,7 +18,7 @@ SNPSLMD_LICENSE_FILE ?= 26585@lstn
 export SNPSLMD_LICENSE_FILE
 
 # VCS variables
-VCS_OPTS := -R -sverilog -debug_access+all -full64
+VCS_OPTS := -sverilog -debug_access+all -full64
 VCS_INCDIR := +incdir+$(ROOT_DIR)/$(SRC_DIR)
 VCS_DW_LIB := -y /usr/cad/synopsys/synthesis/2024.09-sp2/dw/sim_ver
 VCS_POST_DEFINES := +define+POST_SIM
@@ -27,6 +27,22 @@ VCS_LIBEXT := +libext+.v+.sv
 STDCELL_SIM_V := /cad/process/ADFP/Executable_Package/Collaterals/IP/stdcell/N16ADFP_StdCell/VERILOG/N16ADFP_StdCell.v
 SRAM_SIM_V := /cad/process/ADFP/Executable_Package/Collaterals/IP/sram/N16ADFP_SRAM/VERILOG/N16ADFP_SRAM_100a.v
 TB_DPI_SRCS := ../$(TB_DIR)/time_utils.c
+
+# Optional testbench macro overrides, e.g.
+# make pre_sim AXI_WRITE_WREADY_DELAY=10 AXI_READ_ARREADY_DELAY=0 AXI_READ_RVALID_DELAY=0 error_recovery_test=1
+VCS_PRE_DEFINES :=
+ifneq ($(strip $(AXI_READ_ARREADY_DELAY)),)
+VCS_PRE_DEFINES += +define+AXI_READ_ARREADY_DELAY=$(AXI_READ_ARREADY_DELAY)
+endif
+ifneq ($(strip $(AXI_READ_RVALID_DELAY)),)
+VCS_PRE_DEFINES += +define+AXI_READ_RVALID_DELAY=$(AXI_READ_RVALID_DELAY)
+endif
+ifneq ($(strip $(AXI_WRITE_WREADY_DELAY)),)
+VCS_PRE_DEFINES += +define+AXI_WRITE_WREADY_DELAY=$(AXI_WRITE_WREADY_DELAY)
+endif
+ifneq ($(strip $(error_recovery_test)),)
+VCS_PRE_DEFINES += +define+error_recovery_test=$(error_recovery_test)
+endif
 
 # Design and testbench
 DESIGN_TOP := SOLE
@@ -86,6 +102,7 @@ pre_sim: | $(BUILD_DIR) $(LOG_DIR)
 	@set -o pipefail; \
 	cd $(BUILD_DIR) && { \
 	$(VCS) $(VCS_OPTS) $(VCS_INCDIR) \
+		$(VCS_PRE_DEFINES) \
 		$(VCS_DW_LIB) \
 		$(VCS_LIBEXT) \
 		-top $(TB_TOP) \

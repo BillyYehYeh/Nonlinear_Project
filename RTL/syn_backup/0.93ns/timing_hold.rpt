@@ -1,0 +1,64 @@
+ 
+****************************************
+Report : timing
+        -path full
+        -delay min
+        -max_paths 1
+        -sort_by group
+Design : SOLE
+Version: W-2024.09-SP2
+Date   : Mon Apr 20 15:23:50 2026
+****************************************
+
+ # A fanout number of 1000 was used for high fanout net computations.
+
+Operating Conditions: ff0p88v125c   Library: N16ADFP_StdCellff0p88v125c
+Wire Load Model Mode: segmented
+
+  Startpoint: M_AXI_RDATA[3]
+              (input port clocked by clk)
+  Endpoint: u_softmax/u_p1/u_max_unit/r1_reg_3_
+            (rising edge-triggered flip-flop clocked by clk)
+  Path Group: clk
+  Path Type: min
+
+  Des/Clust/Port     Wire Load Model       Library
+  ------------------------------------------------
+  SOLE               ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  MaxUnit            ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  Softmax            ZeroWireload          N16ADFP_StdCellss0p72vm40c
+  PROCESS_1_Module   ZeroWireload          N16ADFP_StdCellss0p72vm40c
+
+  Point                                                   Incr       Path
+  --------------------------------------------------------------------------
+  clock clk (rise edge)                                 0.0000     0.0000
+  clock network delay (ideal)                           0.2000     0.2000
+  input external delay                                  0.0000     0.2000 f
+  M_AXI_RDATA[3] (in)                                   0.0016     0.2016 f
+  U628/Z (BUFFD2BWP20P90)                               0.0152     0.2169 f
+  U636/Z (CKBD1BWP16P90LVT)                             0.0088     0.2256 f
+  U634/Z (CKBD1BWP16P90LVT)                             0.0085     0.2341 f
+  U631/Z (CKBD1BWP16P90LVT)                             0.0119     0.2460 f
+  u_softmax/M_AXI_RDATA[3] (Softmax)                    0.0000     0.2460 f
+  u_softmax/u_p1/DataIn_64bits[3] (PROCESS_1_Module)    0.0000     0.2460 f
+  u_softmax/u_p1/u_max_unit/A[3] (MaxUnit)              0.0000     0.2460 f
+  u_softmax/u_p1/u_max_unit/U244/Z (AO22D1BWP16P90)     0.0212     0.2672 f
+  u_softmax/u_p1/u_max_unit/r1_reg_3_/D (DFCNQD2BWP20P90)
+                                                        0.0000     0.2672 f
+  data arrival time                                                0.2672
+
+  clock clk (rise edge)                                 0.0000     0.0000
+  clock network delay (ideal)                           0.2000     0.2000
+  clock uncertainty                                     0.0200     0.2200
+  u_softmax/u_p1/u_max_unit/r1_reg_3_/CP (DFCNQD2BWP20P90)
+                                                        0.0000     0.2200 r
+  library hold time                                     0.0471     0.2671
+  data required time                                               0.2671
+  --------------------------------------------------------------------------
+  data required time                                               0.2671
+  data arrival time                                               -0.2672
+  --------------------------------------------------------------------------
+  slack (MET)                                                      0.0001
+
+
+1
